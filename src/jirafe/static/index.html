@@ -130,6 +130,9 @@ try {
     background: var(--column); color: var(--text); box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
   }
   .load-panel[hidden] { display: none; }
+  /* Button in the left half of the window (the header wraps on a narrow one): the panel opens towards the
+     right, rather than past the left edge of the screen. */
+  .load-panel.from-left { right: auto; left: 0; }
   /* Stand-up: whoever speaks hands over to anyone; the board shows the cards of the person speaking and what
      changed on them since yesterday, and the row of people tells who already spoke. */
   .standup { margin: 0 1.2rem 0.6rem; padding: 0.5rem 0.8rem; border: 1px solid var(--accent); border-radius: 0.5rem; background: var(--column); }
@@ -1842,7 +1845,22 @@ function renderLoad(
 function toggleLoadPanel(open) {
   $("load-panel").hidden = !open;
   $("load").setAttribute("aria-expanded", String(open));
-  if (open) refreshLoad();
+  if (open) {
+    alignPopover(
+      $("load-panel"),
+      $("load")
+    );
+    refreshLoad();
+  }
+}
+
+// Where the header puts a button depends on the window's width: its panel opens towards the side with room.
+function alignPopover(
+  panel,
+  button
+) {
+  const box = button.getBoundingClientRect();
+  panel.classList.toggle("from-left", box.left + box.width / 2 < document.documentElement.clientWidth / 2);
 }
 
 $("load").addEventListener("click", () => toggleLoadPanel($("load-panel").hidden));
@@ -2519,6 +2537,12 @@ function formatSince(at) {
 function toggleActivityPanel(open) {
   $("activity-panel").hidden = !open;
   $("activity-btn").setAttribute("aria-expanded", String(open));
+  if (open) {
+    alignPopover(
+      $("activity-panel"),
+      $("activity-btn")
+    );
+  }
   renderActivity();
 }
 
