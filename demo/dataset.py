@@ -92,6 +92,8 @@ BOARD_ID = 1
 SPRINT_ID = 23
 SPRINT_NAME = "Folio Sprint 23"
 SPRINT_GOAL = "Ship the new checkout to 10% of customers"
+# Starts and closes the sprints: the history of carried-over issues shows their name.
+SPRINT_OWNER = "grace"
 PREVIOUS_SPRINT_ID = 22
 PREVIOUS_SPRINT_NAME = "Folio Sprint 22"
 SPRINT_LENGTH_DAYS = 14
@@ -118,7 +120,7 @@ QUICK_FILTERS = (
 
 # The sprint, in board order (rank). Freshness says when the issue last moved: "recent" within the last
 # two hours (coloured edge on the card), "yesterday" on the previous working day (stand-up), "older" before.
-# Carried: the issue comes from the previous sprint. Points: None when not estimated.
+# Carried: the issue comes from the previous sprint. Reworked: the code review sent it back once. Points: None when not estimated.
 ISSUES = (
     # To Do
     dict(summary="Show the delivery estimate on the basket page", type="Story", priority="Medium", status="1",
@@ -153,7 +155,7 @@ ISSUES = (
     # Code Review
     dict(summary="Address autocomplete on the delivery form", type="Story", priority="High", status="10100",
          assignee="chloe", epic="Checkout revamp", points=5, labels=["frontend"], freshness="recent",
-         detailed="autocomplete"),
+         reworked=True, detailed="autocomplete"),
     dict(summary="Index author pen names", type="Story", priority="Medium", status="10100",
          assignee="dmitri", epic="Search relevance", points=3, labels=["backend"], freshness="yesterday"),
     dict(summary="Retry webhook deliveries with backoff", type="Task", priority="Medium", status="10100",
@@ -163,7 +165,7 @@ ISSUES = (
     # Ready for QA
     dict(summary="Split the checkout into three steps", type="Story", priority="High", status="10101",
          assignee="grace", epic="Checkout revamp", points=8, labels=["frontend"], freshness="yesterday",
-         carried=True, detailed="three-steps"),
+         carried=True, reworked=True, detailed="three-steps"),
     dict(summary="Wishlist sync between web and mobile", type="Story", priority="Medium", status="10101",
          assignee="emma", epic="Mobile app", points=5, labels=["mobile", "api"], freshness="older"),
     dict(summary="Discount code accepted after expiry", type="Bug", priority="High", status="10101",
@@ -179,7 +181,7 @@ ISSUES = (
     # Done
     dict(summary="Basket badge shows the wrong count after login", type="Bug", priority="High",
          status="10001", assignee="chloe", epic="Checkout revamp", points=2, labels=["frontend"],
-         freshness="yesterday"),
+         freshness="yesterday", reworked=True),
     dict(summary="Dark mode for the reading list", type="Story", priority="Low", status="10001",
          assignee="farid", epic="Mobile app", points=3, labels=["mobile"], freshness="older"),
     dict(summary="Log payment provider latency", type="Task", priority="Medium", status="10001",

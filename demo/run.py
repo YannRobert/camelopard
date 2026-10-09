@@ -11,6 +11,7 @@ afresh, and the local copy of issues goes to a temporary directory, away from a 
 import argparse
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -74,12 +75,20 @@ def main():
         cwd=str(SRC_DIR),
         env={**os.environ, "JIRA_PAT": DEMO_TOKEN}
     )
+    # Stopped by kill rather than Ctrl+C: Jirafe would otherwise outlive the fake Jira it reads.
+    signal.signal(
+        signal.SIGTERM,
+        lambda *_: sys.exit(0)
+    )
     try:
         jirafe.wait()
     except KeyboardInterrupt:
         # Ctrl+C reaches Jirafe too, from the same console: it only has to be waited for.
         jirafe.wait()
     finally:
+        if jirafe.poll() is None:
+            jirafe.terminate()
+            jirafe.wait()
         shutil.rmtree(
             mirror_dir,
             ignore_errors=True

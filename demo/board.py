@@ -140,15 +140,22 @@ class Board:
             "resolutiondate": None,
             "duedate": (now + timedelta(days=2)).strftime("%Y-%m-%d") if spec["priority"] == "Highest" else None,
         }
-        # Status moves along the main line, the last one at last_at, the others spread before it.
+        # Status moves along the main line, the last one at last_at, the others spread before it. Reworked:
+        # the review sent the issue back once.
         moves = data.MAIN_LINE[1:status_index + 1]
+        if spec.get("reworked") and "10100" in moves:
+            review = moves.index("10100") + 1
+            moves = moves[:review] + ("3", "10100") + moves[review:]
+        reviewer = rng.choice([login for login in data.DEVELOPERS if login != developer])
         times = sorted(
             created + (last_at - created) * rng.uniform(0.15, 0.95)
             for _ in moves[:-1]
         ) + [last_at] if moves else []
         for status, at in zip(moves, times):
             author = tester if status in ("10102", data.DONE_STATUS) else developer
-            if status == "3":
+            if status == "3" and issue["status"] == "10100":
+                author = reviewer
+            elif status == "3":
                 self._assign(
                     issue,
                     developer,
@@ -195,6 +202,21 @@ class Board:
                 "author": author,
                 "created": created + timedelta(hours=1),
             })
+        if spec.get("carried"):
+            # The previous sprint closed with the issue unfinished: Jira adds the next sprint to its field.
+            self._history(
+                issue,
+                data.SPRINT_OWNER,
+                self.sprint_start,
+                [item(
+                    "Sprint",
+                    str(data.PREVIOUS_SPRINT_ID),
+                    data.PREVIOUS_SPRINT_NAME,
+                    f"{data.PREVIOUS_SPRINT_ID}, {data.SPRINT_ID}",
+                    f"{data.PREVIOUS_SPRINT_NAME}, {data.SPRINT_NAME}"
+                )]
+            )
+        issue["histories"].sort(key=lambda history: history["created"])
         if spec["type"] == "Bug":
             issue["criticality"] = CRITICALITY[spec["priority"]]
             issue["environments"] = ["Production"] if spec["priority"] in ("Highest", "High") else ["Staging"]
