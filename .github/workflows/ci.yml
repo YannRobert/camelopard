@@ -26,6 +26,6 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Compile
-        run: python -m compileall -q src tests
+        run: python -m compileall -q src tests demo
       - name: Test
         run: python -m unittest -v

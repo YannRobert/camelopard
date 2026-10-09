@@ -16,6 +16,9 @@ export JIRA_PAT="the-token"
 cd src && python3 -m jirafe --port 9101
 ```
 
+Without access to a Jira, `python3 demo/run.py` runs Jirafe against a fake one (see `demo/`), with the
+same page and server.
+
 The page is re-read on every request: a change to `src/jirafe/static/index.html` shows up on the next
 reload, without restarting the server.
 
@@ -24,7 +27,7 @@ reload, without restarting the server.
 From the repository root, with nothing to install:
 
 ```bash
-python3 -m compileall -q src tests
+python3 -m compileall -q src tests demo
 python3 -m unittest
 ```
 
@@ -35,7 +38,8 @@ panel and the `GET /stats` counter by hand in the browser.
 
 - One pull request per topic, with a description of the why. Its title ends up in the release notes:
   make it meaningful to a user.
-- Never include a token, an internal instance URL or real issue data (screenshots included).
+- Never include a token, an internal instance URL or real issue data (screenshots included): take
+  screenshots on the demo board.
 
 By contributing, you agree that your contribution is published under the project's
 [MIT license](LICENSE), and you commit to following the [code of conduct](CODE_OF_CONDUCT.md).

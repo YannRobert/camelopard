@@ -39,6 +39,10 @@ file lists what must be respected when changing it.
   (`jiraWeb`, `boardId`, `fields`, `views`) is injected in place of the `__CONFIG__` marker.
 - An extra custom field is added as a **role**: in `FIELD_ROLES`, in the page (through
   `custom(f, "role")`), and in the README roles table.
+- `demo/`: a fake Jira Server (`fakejira.py`) serving a fictional board (`dataset.py`), and `run.py`, which
+  starts it with Jirafe pointed at it. It serves only what Jirafe reads and writes: a new Jira read or write
+  is added there too, and `tests/test_demo.py` runs Jirafe's own client and local copy against it. Its data
+  stays invented, never copied from a real instance, even anonymised.
 - The configuration and the local copy live **outside the repository**, at each system's usual location
   (`paths.py`); never write there from the repository nor version them.
 
@@ -60,7 +64,7 @@ names, statuses, quick filters…) is never translated.
 From the repository root:
 
 ```bash
-python3 -m compileall -q src tests
+python3 -m compileall -q src tests demo
 python3 -m unittest
 ```
 

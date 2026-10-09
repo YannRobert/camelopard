@@ -32,6 +32,18 @@ Jira when pasted into a mail or a chat). Picking a second card closes the detail
 then assigns the picked issues or moves them to a column, after a confirmation listing each one (and the
 issues no known path can move, left as is).
 
+## Trying it without Jira
+
+```bash
+python3 demo/run.py
+```
+
+This opens Jirafe on a fictional board (an imaginary online bookshop and its team), served by a fake Jira
+that runs on your machine: no Jira, no token, no configuration. Its history is placed relative to the
+moment you start it, and colleagues keep moving issues and commenting while it runs, so that the live
+refresh, the stand-up and the notifications have something to show. Moves, ranking and assignments work;
+nothing is kept once it stops. `python3 demo/run.py --help` lists the options.
+
 ## Requirements
 
 - **Python 3.8+** (nothing to install).
@@ -267,6 +279,7 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 jirafe.cmd, jirafe.sh     Windows and Linux / macOS launchers
 start.sh, stop.sh         background server (Linux / macOS)
 jirafe.example.json       configuration template
+demo/                     fake Jira and fictional board, to try Jirafe without Jira
 src/jirafe/
   app.py                  entry point: options, configuration, startup
   handler.py              HTTP routes and security checks
