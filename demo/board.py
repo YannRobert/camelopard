@@ -20,6 +20,7 @@ WORKDAY_END_H = 18
 # A "recent" move happened that many minutes ago, at most: within the default recentMinutes (120).
 RECENT_MAX_MIN = 100
 RECENT_MIN_MIN = 4
+MIN_SPRINT_AGE_DAYS = 3
 FIRST_ISSUE_ID = 20100
 FIRST_EPIC_NUMBER = 41
 FIRST_EPIC_ID = 20000
@@ -64,7 +65,12 @@ class Board:
         self._rng = random.Random(SEED)
         now = now or datetime.now().astimezone()
         self._ids = {"comment": FIRST_COMMENT_ID, "history": FIRST_HISTORY_ID}
-        self.sprint_start = (now - timedelta(days=data.SPRINT_AGE_DAYS)).replace(
+        # Sprints start on a Monday morning, the latest one at least MIN_SPRINT_AGE_DAYS ago: long enough
+        # for a history.
+        monday = now - timedelta(days=now.weekday())
+        if (now - monday).days < MIN_SPRINT_AGE_DAYS:
+            monday -= timedelta(days=7)
+        self.sprint_start = monday.replace(
             hour=WORKDAY_START_H,
             minute=0,
             second=0,
@@ -109,7 +115,7 @@ class Board:
             created = self.sprint_start - timedelta(days=rng.uniform(4, 12))
         else:
             created = self.sprint_start - timedelta(hours=rng.uniform(1, 40))
-        created = min(created, last_at - timedelta(hours=2))
+        created = self._working(min(created, last_at - timedelta(hours=2)))
         developer = spec["assignee"] if spec["assignee"] in data.DEVELOPERS else rng.choice(data.DEVELOPERS)
         tester = spec["assignee"] if spec["assignee"] in data.TESTERS else rng.choice(data.TESTERS)
         issue = {
@@ -148,7 +154,10 @@ class Board:
             moves = moves[:review] + ("3", "10100") + moves[review:]
         reviewer = rng.choice([login for login in data.DEVELOPERS if login != developer])
         times = sorted(
-            created + (last_at - created) * rng.uniform(0.15, 0.95)
+            self._working(
+                created + (last_at - created) * rng.uniform(0.15, 0.95),
+                created
+            )
             for _ in moves[:-1]
         ) + [last_at] if moves else []
         for status, at in zip(moves, times):
@@ -241,6 +250,23 @@ class Board:
             second=rng.randint(0, 59)
         )
 
+    def _working(
+            self,
+            moment,
+            floor=None
+    ):
+        """The moment moved back into working hours (a weekday, from 9 to 18), not before floor: nobody in
+        the team works at night, the history should not suggest it."""
+        day = previous_working_day(moment) if moment.hour < WORKDAY_START_H else moment
+        while day.weekday() >= 5:
+            day -= timedelta(days=1)
+        if day != moment or day.hour >= WORKDAY_END_H:
+            day = day.replace(
+                hour=self._rng.randint(WORKDAY_START_H, WORKDAY_END_H - 1),
+                minute=self._rng.randint(0, 59)
+            )
+        return max(day, floor + timedelta(minutes=5)) if floor else day
+
     def _add_comments(
             self,
             issue,
@@ -256,9 +282,14 @@ class Board:
                 (rng.choice(list(data.PEOPLE)), text)
                 for text in rng.sample(data.GENERIC_COMMENTS, rng.choice((0, 0, 1, 1, 2)))
             ]
-        # The last comment of a detailed issue is from today: it shows in "since your last visit".
         span = now - created
-        times = sorted(created + span * rng.uniform(0.3, 0.97) for _ in comments)
+        times = sorted(
+            self._working(
+                created + span * rng.uniform(0.3, 0.97),
+                created
+            )
+            for _ in comments
+        )
         for (author, text), at in zip(comments, times):
             self._comment(
                 issue,

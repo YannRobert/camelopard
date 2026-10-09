@@ -97,8 +97,6 @@ SPRINT_OWNER = "grace"
 PREVIOUS_SPRINT_ID = 22
 PREVIOUS_SPRINT_NAME = "Folio Sprint 22"
 SPRINT_LENGTH_DAYS = 14
-# Days since the sprint started: far enough for a history, with a week left.
-SPRINT_AGE_DAYS = 6
 FIX_VERSION = "2.4.0"
 
 # Key suffix: (name, ghx-label colour of Jira's palette). Epics are not on the board, only their label.
