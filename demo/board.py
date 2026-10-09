@@ -63,7 +63,8 @@ class Board:
     ):
         self.base = base_url
         self._lock = threading.RLock()
-        self._rng = random.Random(SEED)
+        # Draws of times, re-seeded for every issue (see _build_issue).
+        self._clock = random.Random(SEED)
         now = now or datetime.now().astimezone()
         self._ids = {"comment": FIRST_COMMENT_ID, "history": FIRST_HISTORY_ID}
         # Sprints start on a Monday morning, the latest one at least MIN_SPRINT_AGE_DAYS ago: long enough
@@ -105,7 +106,12 @@ class Board:
             spec,
             now
     ):
-        rng = self._rng
+        # Two generators per issue, seeded by its position: who did what is drawn apart from when, so that
+        # the content stays the same whatever the time of day the demo starts, since moving a time into
+        # working hours takes more draws on some days than on others.
+        rng = random.Random(f"{SEED}/{index}")
+        self._clock = random.Random(f"{SEED}/{index}/time")
+        clock = self._clock
         detailed = spec.get("detailed")
         status_index = data.MAIN_LINE.index(spec["status"])
         last_at = self._last_move_time(
@@ -113,9 +119,9 @@ class Board:
             now
         )
         if spec.get("carried"):
-            created = self.sprint_start - timedelta(days=rng.uniform(4, 12))
+            created = self.sprint_start - timedelta(days=clock.uniform(4, 12))
         else:
-            created = self.sprint_start - timedelta(hours=rng.uniform(1, 40))
+            created = self.sprint_start - timedelta(hours=clock.uniform(1, 40))
         created = self._working(min(created, last_at - timedelta(hours=2)))
         developer = spec["assignee"] if spec["assignee"] in data.DEVELOPERS else rng.choice(data.DEVELOPERS)
         tester = spec["assignee"] if spec["assignee"] in data.TESTERS else rng.choice(data.TESTERS)
@@ -156,7 +162,7 @@ class Board:
         reviewer = rng.choice([login for login in data.DEVELOPERS if login != developer])
         times = sorted(
             self._working(
-                created + (last_at - created) * rng.uniform(0.15, 0.95),
+                created + (last_at - created) * clock.uniform(0.15, 0.95),
                 created
             )
             for _ in moves[:-1]
@@ -202,6 +208,7 @@ class Board:
             )
         self._add_comments(
             issue,
+            rng,
             created,
             now
         )
@@ -237,7 +244,7 @@ class Board:
             freshness,
             now
     ):
-        rng = self._rng
+        rng = self._clock
         if freshness == "recent":
             return now - timedelta(minutes=rng.uniform(RECENT_MIN_MIN, RECENT_MAX_MIN))
         day = previous_working_day(now)
@@ -263,18 +270,18 @@ class Board:
             day -= timedelta(days=1)
         if day != moment or day.hour >= WORKDAY_END_H:
             day = day.replace(
-                hour=self._rng.randint(WORKDAY_START_H, WORKDAY_END_H - 1),
-                minute=self._rng.randint(0, 59)
+                hour=self._clock.randint(WORKDAY_START_H, WORKDAY_END_H - 1),
+                minute=self._clock.randint(0, 59)
             )
         return max(day, floor + timedelta(minutes=5)) if floor else day
 
     def _add_comments(
             self,
             issue,
+            rng,
             created,
             now
     ):
-        rng = self._rng
         detailed = issue["detailed"]
         if detailed in data.COMMENTS:
             comments = data.COMMENTS[detailed]
@@ -289,7 +296,7 @@ class Board:
         span = now - created
         times = sorted(
             self._working(
-                created + span * rng.uniform(0.3, 0.97),
+                created + span * self._clock.uniform(0.3, 0.97),
                 created
             )
             for _ in comments

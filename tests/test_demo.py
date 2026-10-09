@@ -7,6 +7,7 @@ import tempfile
 import threading
 import time
 import unittest
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from jirafe.jira import JiraClient
@@ -20,6 +21,7 @@ sys.path.insert(
     str(Path(__file__).resolve().parents[1] / "demo")
 )
 import dataset  # noqa: E402
+from board import Board  # noqa: E402
 import fakejira  # noqa: E402
 
 DAY_MS = 24 * 3600 * 1000
@@ -157,3 +159,30 @@ class DemoJiraTest(unittest.TestCase):
         }
         self.assertTrue(authors)
         self.assertNotIn(dataset.ME, authors)
+
+
+class DemoContentTest(unittest.TestCase):
+
+    def test_same_content_whatever_the_start_time(self):
+        """Screenshots taken on different days show the same issues, people and comments: only the dates
+        move with the start of the demo."""
+
+        def content(now):
+            return [
+                (
+                    issue["key"],
+                    issue["status"],
+                    issue["assignee"],
+                    issue["reporter"],
+                    [(comment["author"], comment["body"]) for comment in issue["comments"]],
+                    sorted((history["author"], history["items"][0]["toString"] or "") for history in issue["histories"]),
+                )
+                for issue in Board(
+                    "http://jira.test",
+                    now
+                ).issues
+            ]
+
+        morning = datetime.now().astimezone().replace(hour=9, minute=30)
+        for later in (timedelta(hours=10), timedelta(days=1, hours=5), timedelta(days=4)):
+            self.assertEqual(content(morning), content(morning + later))
