@@ -110,6 +110,11 @@ EPICS = (
 
 QUICK_FILTERS = (
     # The page evaluates assignee filters itself; the others are asked to Jira (here, filter() in board.py).
+    # Teams usually add one filter per person, named after their first name.
+    *(
+        {"id": 11 + index, "name": name.split()[0], "query": f"assignee = {login}", "description": ""}
+        for index, (login, name) in enumerate(PEOPLE.items())
+    ),
     {"id": 1, "name": "Only my issues", "query": "assignee = currentUser()", "description": ""},
     {"id": 2, "name": "Unassigned", "query": "assignee is EMPTY", "description": ""},
     {"id": 3, "name": "Bugs", "query": "issuetype = Bug", "description": "Every bug of the sprint"},
@@ -124,9 +129,9 @@ ISSUES = (
     dict(summary="Show the delivery estimate on the basket page", type="Story", priority="Medium", status="1",
          assignee=None, epic="Checkout revamp", points=3, labels=["frontend"], freshness="older"),
     dict(summary="Gift wrapping option at checkout", type="Story", priority="Low", status="1",
-         assignee=None, epic="Checkout revamp", points=5, labels=["frontend", "backend"], freshness="older"),
+         assignee=None, epic=None, points=5, labels=["frontend", "backend"], freshness="older"),
     dict(summary="Search returns no result for ISBNs with dashes", type="Bug", priority="High", status="1",
-         assignee="dmitri", epic="Search relevance", points=2, labels=["backend"], freshness="yesterday"),
+         assignee="dmitri", epic=None, points=2, labels=["backend"], freshness="yesterday"),
     dict(summary="Keyboard focus is lost after closing the cart drawer", type="Bug", priority="Medium",
          status="1", assignee=None, epic="Accessibility", points=1, labels=["frontend", "a11y"],
          freshness="older"),
@@ -157,7 +162,7 @@ ISSUES = (
     dict(summary="Index author pen names", type="Story", priority="Medium", status="10100",
          assignee="dmitri", epic="Search relevance", points=3, labels=["backend"], freshness="yesterday"),
     dict(summary="Retry webhook deliveries with backoff", type="Task", priority="Medium", status="10100",
-         assignee="bruno", epic="Payments v2", points=3, labels=["backend", "api"], freshness="older"),
+         assignee="bruno", epic=None, points=3, labels=["backend", "api"], freshness="older"),
     dict(summary="Contrast of the \"Add to basket\" button", type="Bug", priority="Low", status="10100",
          assignee="alice", epic="Accessibility", points=1, labels=["frontend", "a11y"], freshness="yesterday"),
     # Ready for QA
@@ -167,7 +172,7 @@ ISSUES = (
     dict(summary="Wishlist sync between web and mobile", type="Story", priority="Medium", status="10101",
          assignee="emma", epic="Mobile app", points=5, labels=["mobile", "api"], freshness="older"),
     dict(summary="Discount code accepted after expiry", type="Bug", priority="High", status="10101",
-         assignee=None, epic="Payments v2", points=2, labels=["backend"], freshness="recent"),
+         assignee=None, epic=None, points=2, labels=["backend"], freshness="recent"),
     # In QA
     dict(summary="Apple Pay on the product page", type="Story", priority="High", status="10102",
          assignee="emma", epic="Payments v2", points=8, labels=["frontend", "mobile"], freshness="recent",
@@ -178,12 +183,12 @@ ISSUES = (
          assignee="emma", epic="Accessibility", points=1, labels=["frontend", "a11y"], freshness="older"),
     # Done
     dict(summary="Basket badge shows the wrong count after login", type="Bug", priority="High",
-         status="10001", assignee="chloe", epic="Checkout revamp", points=2, labels=["frontend"],
+         status="10001", assignee="chloe", epic=None, points=2, labels=["frontend"],
          freshness="yesterday", reworked=True),
     dict(summary="Dark mode for the reading list", type="Story", priority="Low", status="10001",
          assignee="farid", epic="Mobile app", points=3, labels=["mobile"], freshness="older"),
     dict(summary="Log payment provider latency", type="Task", priority="Medium", status="10001",
-         assignee="bruno", epic="Payments v2", points=2, labels=["backend"], freshness="older"),
+         assignee="bruno", epic=None, points=2, labels=["backend"], freshness="older"),
     dict(summary="Synonyms for genres (sci-fi, science fiction)", type="Story", priority="Medium",
          status="10001", assignee="dmitri", epic="Search relevance", points=3, labels=["backend"],
          freshness="yesterday"),
@@ -277,6 +282,12 @@ GENERIC_COMMENTS = (
     "The design is in the Figma file, page \"Checkout v2\".",
     "Product confirmed: no change needed on the emails.",
     "Rebased on main, the build is green again.",
+)
+# Comments on an issue nobody has started: the ones above talk about work already done.
+NOT_STARTED_COMMENTS = (
+    "Do we have the designs for this one?",
+    "Estimated at the refinement, we can split it if needed.",
+    "Product wants this before the next marketing campaign.",
 )
 # What a colleague says when the demo simulates activity.
 LIVE_COMMENTS = (

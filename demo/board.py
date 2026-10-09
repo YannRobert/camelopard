@@ -38,6 +38,7 @@ LINK_TYPES = {
 CRITICALITY = {"Highest": "Critical", "High": "Major", "Medium": "Minor", "Low": "Minor"}
 COMPONENTS = {"frontend": "Web", "backend": "Backend", "mobile": "Mobile", "api": "API"}
 KEY_IN = re.compile(r"^key in \(([A-Z0-9,-]+)\)\Z")
+PERSON_FILTER = re.compile(r"^assignee = ([a-z]+)\Z")
 SPRINT_IN = re.compile(r"^sprint in \(([0-9,]+)\)( AND updated >= -([0-9]+)m)?\Z")
 
 
@@ -280,7 +281,10 @@ class Board:
         else:
             comments = [
                 (rng.choice(list(data.PEOPLE)), text)
-                for text in rng.sample(data.GENERIC_COMMENTS, rng.choice((0, 0, 1, 1, 2)))
+                for text in rng.sample(
+                    data.NOT_STARTED_COMMENTS if issue["status"] == "1" else data.GENERIC_COMMENTS,
+                    rng.choice((0, 0, 1, 1, 2))
+                )
             ]
         span = now - created
         times = sorted(
@@ -810,6 +814,9 @@ class Board:
             quick_filter
     ):
         query = next((f["query"] for f in data.QUICK_FILTERS if str(f["id"]) == str(quick_filter)), None)
+        person = PERSON_FILTER.match(query or "")
+        if person:
+            return issue["assignee"] == person.group(1)
         return {
             "assignee = currentUser()": issue["assignee"] == data.ME,
             "assignee is EMPTY": issue["assignee"] is None,

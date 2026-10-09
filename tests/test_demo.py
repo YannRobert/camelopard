@@ -116,6 +116,9 @@ class DemoJiraTest(unittest.TestCase):
         board = self.get("rest/greenhopper/1.0/xboard/work/allData.json?rapidViewId=1&activeQuickFilters=3")
         types = {issue["typeName"] for issue in board["issuesData"]["issues"]}
         self.assertEqual(types, {"Bug"})
+        bruno = next(f["id"] for f in dataset.QUICK_FILTERS if f["name"] == "Bruno")
+        board = self.get(f"rest/greenhopper/1.0/xboard/work/allData.json?rapidViewId=1&activeQuickFilters={bruno}")
+        self.assertEqual({issue["assignee"] for issue in board["issuesData"]["issues"]}, {"bruno"})
 
     def test_labels_page_and_people(self):
         page = self.get(f"rest/agile/1.0/board/1/sprint/{dataset.SPRINT_ID}/issue?fields=labels&maxResults=50&startAt=0")
