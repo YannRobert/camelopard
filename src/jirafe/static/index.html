@@ -84,7 +84,10 @@ try {
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   button { font: inherit; color: inherit; }
 
-  header { flex: none; border-top: 4px solid var(--accent); padding: 0.9rem 1.2rem 0.4rem; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.6rem 1.2rem; }
+  /* Two rows of fixed height, whatever the board: the header (which board, its data) and the toolbar (which
+     part of it is shown). A group never wraps to a line of its own: text gets shorter instead (sprint name,
+     tagline), and only on a narrow window does the data move under the titles, still on the right. */
+  header { flex: none; border-top: 4px solid var(--accent); padding: 0.7rem 1.2rem 0.35rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1.2rem; }
   header .brand {
     display: flex; align-items: center; gap: 0.55rem; margin-right: 0.9rem; padding-right: 0.9rem;
     border-right: 1px solid var(--border); font-weight: 800; font-size: 1.7rem; letter-spacing: -0.01em;
@@ -98,9 +101,10 @@ try {
   header .brand .j { color: var(--accent); }
   header .brand .name { display: flex; flex-direction: column; line-height: 1.05; }
   header .brand .tagline { color: var(--muted); font-size: 0.85rem; font-weight: 500; font-style: italic; letter-spacing: 0; }
-  header .titles { display: flex; flex-direction: column; min-width: 0; }
-  header .crumb { color: var(--muted); font-size: 0.85rem; }
-  header h1 { margin: 0; display: flex; align-items: baseline; gap: 0.8rem; font-size: 1.5rem; font-weight: 500; }
+  header .titles { flex: 1 1 14rem; display: flex; flex-direction: column; min-width: 0; }
+  header .crumb { color: var(--muted); font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  header h1 { margin: 0; display: flex; align-items: baseline; gap: 0.8rem; font-size: 1.5rem; font-weight: 500; min-width: 0; }
+  header #sprint-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   header select {
     font: inherit; font-size: 0.9rem; color: var(--link); background: transparent; border: 0; cursor: pointer; padding: 0.1rem 0;
   }
@@ -108,8 +112,9 @@ try {
   header select option:checked, .filters .more-labels option:checked { color: var(--accent-fg); background: var(--accent); }
   header select option:disabled, .filters .more-labels option:disabled,
   .filters .more-labels option[value=""] { color: var(--faint); background: var(--column); font-style: italic; }
-  header .spacer { flex: 1; }
-  header .right { display: flex; align-items: center; gap: 0.9rem; color: var(--muted); font-size: 0.85rem; }
+  /* margin-left: auto keeps the data in the right corner, on the first line as on the next one. */
+  header .right { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 0.5rem 0.9rem; margin-left: auto; color: var(--muted); font-size: 0.85rem; }
+  header .right > *, .load-btn, .refresh-controls label.auto { white-space: nowrap; }
   header .remaining { font-size: 0.85rem; font-weight: 400; color: var(--muted); white-space: nowrap; }
   header .remaining.over { color: var(--red); font-weight: 600; }
   header .status { text-align: right; line-height: 1.3; }
@@ -237,8 +242,21 @@ try {
   }
   @keyframes freshness-off { to { opacity: 0.15; } }
 
-  .filters { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.3rem; padding: 0.3rem 1.2rem 0.7rem; font-size: 0.85rem; }
-  .filters .label { color: var(--muted); font-weight: 600; font-size: 0.75rem; letter-spacing: 0.02em; margin-right: 0.4rem; }
+  .toolbar { flex: none; display: flex; align-items: center; gap: 0.5rem 1rem; padding: 0.35rem 1.2rem 0.7rem; font-size: 0.85rem; }
+  .toolbar > .views, .toolbar > .icon-btn { flex: none; }
+  /* The filters take what the view, the search and the count leave, on one line (see fitFilters). */
+  .filters { flex: 1 1 0; min-width: 0; display: flex; flex-wrap: nowrap; align-items: center; gap: 0.2rem 0.3rem; overflow: hidden; white-space: nowrap; }
+  .filters.expanded { flex-wrap: wrap; }
+  .toolbar:has(.filters.expanded) { align-items: flex-start; }
+  .filters > [hidden] { display: none; }
+  .filters .label { color: var(--muted); font-weight: 600; font-size: 0.75rem; letter-spacing: 0.02em; text-transform: uppercase; margin-right: 0.4rem; }
+  .filters .label:not(:first-child) { margin-left: 0.2rem; }
+  .filters .more-filters {
+    flex: none; border: 1px dashed var(--border); border-radius: 3px; background: none; color: var(--link);
+    font: inherit; font-size: 0.8rem; padding: 0.15rem 0.45rem; cursor: pointer; margin-left: 0.2rem;
+  }
+  .filters .more-filters:hover { border-color: var(--accent); }
+  .filters .more-filters.active { border-style: solid; border-color: var(--accent); color: var(--accent); font-weight: 600; }
   .filters button.qf {
     border: 0; background: transparent; color: var(--link); padding: 0.2rem 0.45rem; border-radius: 3px; cursor: pointer;
   }
@@ -258,36 +276,35 @@ try {
     background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 17'%3E%3Cg stroke-linecap='round' fill='none'%3E%3Cpath d='M7.5 16 L5.6 5.5 M12.5 16 L14.4 5.5' stroke='%233b2412' stroke-width='4.6'/%3E%3Cpath d='M7.5 16 L5.6 5.5 M12.5 16 L14.4 5.5' stroke='%23f2b84b' stroke-width='2.2'/%3E%3C/g%3E%3Cg fill='%238a4f1c' stroke='%233b2412' stroke-width='1.2'%3E%3Ccircle cx='5.4' cy='4.2' r='3'/%3E%3Ccircle cx='14.6' cy='4.2' r='3'/%3E%3C/g%3E%3C/svg%3E");
     filter: drop-shadow(0 1px 0.5px rgb(0 0 0 / 35%));
   }
-  /* Search and count, right-aligned: the group takes the rest of the line; when space runs out (zoom,
-     narrow screen), the count wraps under the search, still on the right, rather than alone on the left. */
-  .filters .search {
-    flex: 1 0 16rem; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 0.1rem 0.6rem;
-  }
-  .filters input {
+  /* Search, count and clear at the end of the line: what is shown, then how to show everything again. */
+  .toolbar .search { flex: none; display: flex; align-items: center; gap: 0.6rem; margin-left: auto; }
+  .toolbar input {
     width: 16rem; max-width: 100%; font: inherit; color: var(--text);
     background: var(--column); border: 1px solid var(--border); border-radius: 3px; padding: 0.3rem 0.6rem;
   }
   /* Assignee filters on one side, the others on the other: they are not mixed up. */
   .filters .qf-sep { width: 1px; align-self: stretch; margin: 0.15rem 0.6rem; background: var(--border); }
-  /* Labels move away from the quick filters as far as the width allows: ~3rem on a large screen, the usual
-     gap on a narrow one. */
-  .filters .qf-sep.labels-sep { margin-inline: clamp(0.6rem, 2.5vw, 3rem); }
-  .filters .count { color: var(--muted); white-space: nowrap; }
-  /* Reduced width (zoom, small screen): filters tighten up before wrapping. */
+  .filters .qf-sep.labels-sep { margin-inline: 0.8rem; }
+  .toolbar .count { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  /* Reduced width (zoom, small screen): filters tighten up before going behind "+N more". */
   @media (max-width: 110rem) {
     .filters button.qf { padding-inline: 0.3rem; }
     .filters .qf-sep { margin-inline: 0.35rem; }
-    .filters .qf-sep.labels-sep { margin-inline: clamp(0.35rem, 1.2vw, 1.5rem); }
+    .filters .qf-sep.labels-sep { margin-inline: 0.6rem; }
     .filters .label { margin-right: 0.15rem; }
+  }
+  /* Narrow window: the filters get a line of their own under the view and the search. */
+  @media (max-width: 64rem) {
+    .toolbar { flex-wrap: wrap; }
+    .toolbar .filters { order: 1; flex-basis: 100%; }
+    .toolbar input { width: 12rem; }
+    header .brand .tagline { display: none; }
   }
   .filters button.qf .n { margin-left: 0.3rem; font-size: 0.7rem; opacity: 0.7; }
   .filters .more-labels {
     font: inherit; font-size: 0.8rem; color: var(--link); background: transparent; border: 1px dashed var(--border);
     border-radius: 3px; padding: 0.15rem 0.3rem; cursor: pointer; max-width: 12rem;
   }
-  header .view { display: flex; align-items: center; gap: 1.2rem; align-self: center; }
-  header .divider { width: 1px; align-self: stretch; background: var(--border); }
-  header .right { align-self: center; }
   .icon-btn {
     border: 0; background: none; color: var(--muted); cursor: pointer; font: inherit;
     padding: 0.2rem 0.35rem; border-radius: 4px;
@@ -682,22 +699,13 @@ try {
       <select id="sprint" aria-label="Change sprint" hidden></select>
       <span id="remaining" class="remaining"></span></h1>
   </div>
-  <span class="spacer"></span>
-  <!-- In the middle: how the board is looked at (view, theme). On the right, in the corner: its data. -->
-  <div class="view">
-    <span class="views" id="views" role="group" aria-label="Board view"></span>
-    <button type="button" class="icon-btn clear" id="clear-filters"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 4.5 H17.5 L11.8 11.3 V17 L8.2 18.8 V11.3 Z"/><path d="M15.5 15.5 L21 21 M21 15.5 L15.5 21"/></svg></button>
-    <button type="button" class="icon-btn standup-btn" id="standup-toggle" aria-pressed="false" title="Stand-up: each one's cards in turn, in the order the floor goes (S)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20 c0-3.6 2.7-6 6-6 s6 2.4 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14.1 c2.6 0.2 4.5 2.4 4.5 5.4"/></svg></button>
-    <span class="divider" aria-hidden="true"></span>
-    <button type="button" class="icon-btn notify" id="notify" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16.5 V11 a6 6 0 0 1 12 0 V16.5 L19.5 18 H4.5 Z"/><path d="M10 21 h4"/><path class="slash" d="M4 3 L20 21"/></svg></button>
-    <button type="button" class="icon-btn" id="theme"></button>
-  </div>
-  <span class="spacer"></span>
+  <!-- On the right, in the corner: the board's data (what changed, its freshness, the load put on Jira). -->
   <div class="right">
     <div class="activity" id="activity" hidden>
       <button type="button" class="load-btn activity-btn" id="activity-btn" aria-expanded="false" aria-controls="activity-panel"></button>
       <div class="load-panel activity-panel" id="activity-panel" hidden></div>
     </div>
+    <button type="button" class="icon-btn notify" id="notify" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16.5 V11 a6 6 0 0 1 12 0 V16.5 L19.5 18 H4.5 Z"/><path d="M10 21 h4"/><path class="slash" d="M4 3 L20 21"/></svg></button>
     <div class="jira-load">
       <button type="button" class="load-btn" id="load" aria-expanded="false" aria-controls="load-panel"></button>
       <div class="load-panel" id="load-panel" hidden></div>
@@ -709,9 +717,20 @@ try {
       <div class="freshness" id="freshness" hidden aria-hidden="true"></div>
     </div>
     <a class="btn" id="open-jira" target="_blank" rel="noopener">Open in Jira</a>
+    <button type="button" class="icon-btn" id="theme"></button>
   </div>
 </header>
-<div class="filters" id="filters"></div>
+<!-- Second row: what part of the board is shown (view, stand-up, filters, search), and how much of it. -->
+<div class="toolbar">
+  <span class="views" id="views" role="group" aria-label="Board view"></span>
+  <button type="button" class="icon-btn standup-btn" id="standup-toggle" aria-pressed="false" title="Stand-up: each one's cards in turn, in the order the floor goes (S)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20 c0-3.6 2.7-6 6-6 s6 2.4 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14.1 c2.6 0.2 4.5 2.4 4.5 5.4"/></svg></button>
+  <div class="filters" id="filters" role="group" aria-label="Quick filters and labels"></div>
+  <div class="search">
+    <input id="q" type="search" placeholder="Search (key, summary, type…)  /" title="Key, summary, assignee, epic, labels, type, status, priority — every word must match. Keywords: type:bug status:&quot;in progress&quot; label:back priority:high epic:login @name @me @none; a leading - excludes (-label:back)" aria-label="Search" autocomplete="off">
+    <span class="count" id="count"></span>
+    <button type="button" class="icon-btn clear" id="clear-filters"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 4.5 H17.5 L11.8 11.3 V17 L8.2 18.8 V11.3 Z"/><path d="M15.5 15.5 L21 21 M21 15.5 L15.5 21"/></svg></button>
+  </div>
+</div>
 <div class="standup" id="standup" hidden></div>
 <div class="bulk" id="bulk" role="toolbar" aria-label="Picked issues" hidden></div>
 <div class="error-banner" id="offline" role="alert" hidden>The Jirafe server does not answer: the board shows the last data received. Start it again (<code>start.sh</code>, <code>jirafe.sh</code> or <code>jirafe.cmd</code>); the page reconnects by itself.</div>
@@ -829,6 +848,9 @@ const EPIC_COLORS = {
 };
 const THEME_KEY = "sprint-board.theme";
 const VIEW_KEY = "sprint-board.view";
+const FILTERS_EXPANDED_KEY = "sprint-board.filtersExpanded";
+// Room kept between the last filter shown and the "+N more" button.
+const FILTERS_GAP_PX = 8;
 const DOCK_KEY = "sprint-board.panelDock";
 const PANEL_HEIGHT_KEY = "sprint-board.panelHeight";
 // Bounds of the detail height at the bottom, as a fraction of the window.
@@ -893,6 +915,7 @@ const state = {
   picker: null,
   assigning: new Set(),
   autoRefresh: readPreference(AUTO_REFRESH_KEY) !== "false",
+  filtersExpanded: readPreference(FILTERS_EXPANDED_KEY) === "true",
   dock: readPreference(DOCK_KEY) === "bottom" ? "bottom" : "side",
   // Not remembered across reloads: a maximized detail hides the board the page opens on.
   maximized: false,
@@ -1392,15 +1415,57 @@ function displayOrder(filters) {
 function renderFilters() {
   const board = currentBoard();
   const filters = displayOrder(state.meta?.quickFilters ?? []);
+  const labels = labelsHtml(board);
   $("filters").innerHTML =
-    (filters.length ? `<span class="label">QUICK FILTERS:</span>` : "") +
+    (filters.length ? `<span class="label">Quick filters</span>` : "") +
     filters.map((f, index) => (index > 0 && isPersonFilter(filters[index - 1].id) && !isPersonFilter(f.id) ? `<span class="qf-sep" aria-hidden="true"></span>` : "") +
       `<button type="button" class="qf${isMyFilter(f) ? " me" : ""}" data-qf="${f.id}" aria-pressed="${state.quick.has(f.id)}" aria-busy="${state.filtersLoading.has(f.id)}" ` +
       `title="${isMyFilter(f) ? "You · " : ""}${escapeHtml(f.description || f.query)}">${isMyFilter(f) ? myName(f.name) : escapeHtml(f.name)}</button>`).join("") +
-    labelsHtml(board) +
-    `<span class="search"><input id="q" type="search" placeholder="Search (key, summary, type…)  /" title="Key, summary, assignee, epic, labels, type, status, priority — every word must match. Keywords: type:bug status:&quot;in progress&quot; label:back priority:high epic:login @name @me @none; a leading - excludes (-label:back)" value="${escapeHtml(state.q)}" aria-label="Search">` +
-    (board ? `<span class="count">${countText(board)}</span>` : "") + `</span>`;
+    (filters.length && labels ? `<span class="qf-sep labels-sep" aria-hidden="true"></span>` : "") + labels +
+    `<button type="button" class="more-filters" id="more-filters" aria-controls="filters" hidden></button>`;
+  // Typing in the search does not go through here: the field is only rewritten when the search changes
+  // elsewhere (clear, shared link), so the caret never jumps.
+  if ($("q").value !== state.q) $("q").value = state.q;
+  $("count").textContent = board ? countText(board) : "";
+  fitFilters();
 }
+
+// The filters keep to one line: a board with forty quick filters must not push the board down by five rows.
+// Those past the end of the line are hidden behind a "+N" button, which unfolds them all (remembered); a
+// hidden filter that is switched on shows on that button, so it is never on without the user seeing it.
+function fitFilters() {
+  const rail = $("filters");
+  const more = $("more-filters");
+  if (!more) return;
+  const items = [...rail.children].filter(el => el !== more);
+  rail.classList.remove("expanded");
+  items.forEach(el => { el.hidden = false; });
+  more.hidden = true;
+  if (rail.scrollWidth <= rail.clientWidth) return;
+  more.hidden = false;
+  more.textContent = "+ 99 more";
+  const limit = rail.getBoundingClientRect().left + rail.clientWidth - more.offsetWidth - FILTERS_GAP_PX;
+  const cut = items.findIndex(el => el.getBoundingClientRect().right > limit);
+  const hidden = cut < 0 ? [] : items.slice(cut);
+  // A separator or a group title left last on the line would announce nothing.
+  for (let last = cut - 1; last >= 0 && items[last].matches(".qf-sep, .label"); last--) hidden.unshift(items[last]);
+  const count = hidden.reduce((sum, el) => sum + (el.matches("button") ? 1 : el.matches("select") ? el.options.length - 1 : 0), 0);
+  const on = hidden.filter(el => el.getAttribute("aria-pressed") === "true").length;
+  more.classList.toggle("active", on > 0);
+  more.setAttribute("aria-expanded", String(state.filtersExpanded));
+  if (state.filtersExpanded) {
+    rail.classList.add("expanded");
+    more.textContent = "Show less";
+    more.title = "Keep the filters to one line";
+    return;
+  }
+  hidden.forEach(el => { el.hidden = true; });
+  more.textContent = `+ ${count} more` + (on ? ` · ${on} on` : "");
+  more.title = on ? `${on} of the hidden filters ${on > 1 ? "are" : "is"} on` : "Show every filter";
+}
+
+// The line's room changes with the window, and with the count beside it.
+new ResizeObserver(fitFilters).observe($("filters"));
 
 // Issues and story points displayed — view columns and filters — out of the sprint total:
 // "21 / 49 · 37 / 94 pts". In a Dev view, for instance, the share left on the dev side.
@@ -1428,7 +1493,7 @@ function labelsHtml(board) {
   );
   const shown = top.map(id => byId.get(id));
   const others = labels.filter(label => !top.includes(label.id));
-  return `<span class="qf-sep labels-sep" aria-hidden="true"></span><span class="label">LABELS:</span>` +
+  return `<span class="label">Labels</span>` +
     shown.map(label => `<button type="button" class="qf" data-label="${escapeHtml(label.id)}" aria-pressed="${state.labels.has(label.id)}" ` +
       `title="${label.count} issue(s) in the sprint">${escapeHtml(label.name)}<span class="n">${label.count}</span></button>`).join("") +
     (others.length
@@ -1732,8 +1797,7 @@ function renderBoard() {
   renderStandup();
   renderBulk();
   // The count follows the view and the search, which only redraw the board, not the filter bar.
-  const count = document.querySelector(".filters .count");
-  if (count) count.textContent = countText(board);
+  $("count").textContent = countText(board);
   // Columns outside the view: neither rendered nor laid out, not just hidden with CSS.
   const shown = viewColumns(board, state.view).map(index => ({ column: board.columns[index], index }));
   $("board").style.setProperty("--cols", shown.length);
@@ -3052,6 +3116,15 @@ function writeUrl() {
 document.addEventListener("click", e => {
   if (e.target.closest("#clear-filters")) {
     clearFilters();
+    return;
+  }
+  if (e.target.closest("#more-filters")) {
+    state.filtersExpanded = !state.filtersExpanded;
+    savePreference(
+      FILTERS_EXPANDED_KEY,
+      String(state.filtersExpanded)
+    );
+    fitFilters();
     return;
   }
   const viewButton = e.target.closest("[data-view]");
