@@ -1015,13 +1015,15 @@ function clientPredicate(filter) {
   if (ASSIGNEE_EMPTY.test(filter.query)) return issue => !issue.assignee;
   const field = filter.query.match(FIELD_IS);
   if (field) {
-    const values = (field[4]?.split(",") ?? [field[2] ?? field[3]]).map(value => value.trim().replace(/^"|"$/g, "").toLowerCase());
+    const values = (field[4]?.split(",") ?? [field[2] ?? field[3]]).map(value => value.trim().replace(/^"|"$/g, ""));
     if (field[1].toLowerCase() === "labels") {
-      // Case aside, as the page's label buttons, which merge "front" and "FRONT".
-      return issue => (issue.labels ?? []).some(label => values.includes(label.toLowerCase()));
+      // Case kept: boards list "front" and "FRONT" in the same filter to get both, so Jira tells them apart
+      // (unlike the page's label buttons, which merge them on purpose).
+      return issue => (issue.labels ?? []).some(label => values.includes(label));
     }
-    if (values.every(value => !/^\d+$/.test(value))) {
-      return (issue, board) => values.includes((board.types[issue.typeId]?.name ?? "").toLowerCase());
+    const types = values.map(value => value.toLowerCase());
+    if (types.every(value => !/^\d+$/.test(value))) {
+      return (issue, board) => types.includes((board.types[issue.typeId]?.name ?? "").toLowerCase());
     }
   }
   return null;
