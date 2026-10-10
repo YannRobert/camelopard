@@ -46,9 +46,11 @@ class IssueMirror:
         # Last time a pass found an issue that differs from its local copy (epoch seconds): the page reloads
         # its board when it is older.
         self.changed_at = None
-        # When each issue last changed in Jira (epoch milliseconds): read from the files at the first
-        # question, then kept up to date by every write, so that the page's frequent polling reads no file.
+        # When each issue last changed in Jira (epoch milliseconds), and its labels: read from the files at
+        # the first question, then kept up to date by every write, so that the page's frequent polling and
+        # its board refreshes read no file.
         self._updated = None
+        self._labels = None
         self._updated_lock = threading.Lock()
 
     def read(self, key):
@@ -153,20 +155,32 @@ class IssueMirror:
         )
         return issues
 
+    def labels(self):
+        """Labels of every issue of the local copy, {key: labels}: the board's cards show them, and Jira's
+        board answer lacks them."""
+        with self._updated_lock:
+            self._load_index()
+            return dict(self._labels)
+
     def _updated_since(self, since_ms):
         with self._updated_lock:
-            if self._updated is None:
-                self._updated = {}
-                for path in self._issues.glob("*.json"):
-                    entry = self.read(path.stem)
-                    if entry:
-                        self._note_updated(entry["data"])
+            self._load_index()
             return [(key, at) for key, at in self._updated.items() if at >= since_ms]
 
-    def _note_updated(self, issue):
-        at = jira_time(issue.get("fields", {}).get("updated"))
+    def _load_index(self):
+        if self._updated is None:
+            self._updated, self._labels = {}, {}
+            for path in self._issues.glob("*.json"):
+                entry = self.read(path.stem)
+                if entry:
+                    self._note(entry["data"])
+
+    def _note(self, issue):
+        fields = issue.get("fields", {})
+        at = jira_time(fields.get("updated"))
         if at is not None:
             self._updated[issue["key"]] = at
+        self._labels[issue["key"]] = fields.get("labels") or []
 
     def _search_changed(self, jql):
         stale = [
@@ -223,7 +237,7 @@ class IssueMirror:
         )
         with self._updated_lock:
             if self._updated is not None:
-                self._note_updated(issue)
+                self._note(issue)
         return entry
 
     def _read_state(self):

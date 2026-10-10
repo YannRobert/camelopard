@@ -119,6 +119,9 @@ def make_handler(
                         "recent": mirror.recently_updated(settings.get("recent_minutes", DEFAULT_RECENT_MINUTES)),
                     }
                 )
+            elif self.path == "/labels":
+                # The page's board refresh would otherwise page through the sprint in Jira for them.
+                self.send_json(200, {"labels": mirror.labels()})
             elif urlsplit(self.path).path == "/activity":
                 self.send_activity()
             elif urlsplit(self.path).path == "/stats":

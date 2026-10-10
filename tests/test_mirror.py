@@ -199,6 +199,19 @@ class IncrementalPassTest(unittest.TestCase):
         with mock.patch("jirafe.mirror.time.time", return_value=ten / 1000 + 3600 + 60):
             self.assertEqual(self.mirror.recently_updated(15), {"ABC-2": ten + 3_600_000})
 
+    def test_labels_of_the_local_copy(self):
+        self.assertEqual(self.mirror.labels(), {"ABC-1": [], "ABC-2": []})
+        self.jira.issues[0] = {"key": "ABC-1", "fields": {"labels": ["front"], "updated": "2026-01-02T11:00:00.000+0100"}}
+        self.mirror.sync_board()
+        self.assertEqual(self.mirror.labels(), {"ABC-1": ["front"], "ABC-2": []})
+        restarted = IssueMirror(
+            self.directory.name,
+            self.jira,
+            42,
+            BASE_DETAIL_FIELDS
+        )
+        self.assertEqual(restarted.labels()["ABC-1"], ["front"])
+
     def test_recently_updated_read_from_the_files_after_a_restart(self):
         ten = 1_767_344_400_000
         restarted = IssueMirror(

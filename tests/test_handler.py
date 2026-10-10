@@ -437,6 +437,13 @@ class HandlerTest(unittest.TestCase):
         self.assertIn("windows", json.loads(body))
         self.assertEqual(self.upstream.requests, [])
 
+    def test_labels_from_the_local_copy_without_calling_jira(self):
+        self.mirror.sync_board()
+        status, body = self.call("GET", "/labels")
+        self.assertEqual(status, 200)
+        self.assertIn("ABC-1", json.loads(body)["labels"])
+        self.assertEqual(self.upstream.requests, [])
+
     def test_stats_summary_without_the_breakdown(self):
         status, body = self.call("GET", "/stats?summary=1")
         self.assertEqual(status, 200)

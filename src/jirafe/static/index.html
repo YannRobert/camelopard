@@ -1013,9 +1013,9 @@ function clientPredicate(filter) {
 }
 
 async function fetchBoard(sprintId) {
-  const [raw, labels, filterKeys] = await Promise.all([
+  const [raw, localLabels, filterKeys] = await Promise.all([
     jira(`${ALL_DATA}&activeSprints=${sprintId}`),
-    fetchLabels(sprintId),
+    readLocalLabels(),
     fetchFilterKeys(
       sprintId,
       state.meta.quickFilters.filter(f => state.quick.has(f.id) && !clientPredicate(f))
@@ -1026,8 +1026,24 @@ async function fetchBoard(sprintId) {
     sprintId
   );
   board.filterKeys = filterKeys;
+  // An issue the local copy does not have yet (first start, issue just added to the sprint): Jira gives
+  // the labels of the whole sprint, as before the local copy had them.
+  const labels = board.issues.every(issue => localLabels.has(issue.key)) ? localLabels : await fetchLabels(sprintId);
   for (const issue of board.issues) issue.labels = labels.get(issue.key) ?? [];
   return board;
+}
+
+// Labels of the issues of the local copy, which the background sync keeps up to date: no Jira request.
+async function readLocalLabels() {
+  try {
+    const response = await request(
+      "/labels",
+      { timeout: LOCAL_TIMEOUT_MS }
+    );
+    return response.ok ? new Map(Object.entries((await response.json()).labels)) : new Map();
+  } catch (ignored) {
+    return new Map();
+  }
 }
 
 // The issues of the quick filters Jira evaluates, {filter id: keys}. Each costs a whole board: only the
