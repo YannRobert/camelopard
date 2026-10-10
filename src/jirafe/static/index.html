@@ -117,18 +117,19 @@ try {
   header .right > *, .load-btn, .refresh-controls label.auto { white-space: nowrap; }
   header .remaining { font-size: 0.85rem; font-weight: 400; color: var(--muted); white-space: nowrap; }
   header .remaining.over { color: var(--red); font-weight: 600; }
-  header .status { text-align: right; line-height: 1.3; }
+  /* Two short lines in a fixed box: refreshing or failing replaces the age without moving its neighbours. */
+  header .status { display: grid; width: 11.5rem; font-size: 0.8rem; line-height: 1.25; text-align: right; font-variant-numeric: tabular-nums; }
   /* Load put on Jira, like a load average: requests sent by the server over 1, 5 and 15 minutes. */
   .jira-load { position: relative; }
+  /* A gauge for whoever watches the cost, not an action: quiet text, the detail in its panel. */
   .load-btn {
-    display: inline-flex; flex-direction: column; align-items: flex-end; gap: 0.1rem; cursor: pointer;
-    border: 1px solid var(--border); border-radius: 0.5rem; background: var(--column); color: var(--muted);
-    padding: 0.2rem 0.55rem; font: inherit; font-size: 0.72rem; line-height: 1.15;
+    display: inline-flex; align-items: center; gap: 0.3rem; cursor: pointer; border: 0; border-radius: 4px;
+    background: none; color: var(--muted); padding: 0.25rem 0.4rem; font: inherit; font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
   }
-  .load-btn:hover, .load-btn[aria-expanded="true"] { border-color: var(--accent); }
-  .load-btn .values { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.85rem; color: var(--text); }
-  .load-btn .values b { color: var(--accent); font-weight: 600; }
-  .load-btn .values .sep { color: var(--faint); }
+  .load-btn:hover, .load-btn[aria-expanded="true"] { background: var(--chip); color: var(--text); }
+  .load-btn svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .load-btn b { color: var(--text); font-weight: 600; min-width: 1.6em; text-align: right; }
   .load-panel {
     position: absolute; top: calc(100% + 0.4rem); right: 0; z-index: 30; min-width: 19rem;
     padding: 0.7rem 0.8rem; border: 1px solid var(--border); border-radius: 0.6rem;
@@ -182,9 +183,18 @@ try {
   .bulk select:disabled, .bulk button:disabled { opacity: 0.5; cursor: default; }
   .bulk .busy { color: var(--muted); }
   /* What changed since the last visit: hidden while there is nothing new. */
-  .activity { position: relative; }
-  .activity[hidden] { display: none; }
-  .activity-btn .values b { color: var(--accent); }
+  .activity { position: relative; margin-right: 0.4rem; }
+  /* The bell: what others changed since the last visit, counted on it; struck through while desktop
+     notifications are off. */
+  .icon-btn.notify { position: relative; }
+  .icon-btn.notify .badge {
+    position: absolute; top: -0.3rem; left: 55%; min-width: 1.1rem; padding: 0 0.3rem; border-radius: 999px;
+    background: var(--accent); color: var(--accent-fg); font-size: 0.75rem; font-weight: 700; line-height: 1.1rem;
+    text-align: center; font-variant-numeric: tabular-nums;
+  }
+  .icon-btn.notify .badge[hidden] { display: none; }
+  .activity-panel .notify-toggle { display: flex; align-items: center; gap: 0.5rem; margin: 0.2rem 0 0.6rem; color: var(--muted); cursor: pointer; }
+  .activity-panel .notify-toggle input { accent-color: var(--accent); margin: 0; }
   .activity-panel { width: min(36rem, 92vw); max-height: 70vh; overflow-y: auto; font-size: 0.82rem; }
   .activity-panel .bar { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 0.4rem; }
   .activity-panel .bar h4 { margin: 0; }
@@ -209,7 +219,7 @@ try {
   .load-panel td .hint { display: block; color: var(--faint); font-size: 0.7rem; }
   .load-panel tfoot td { border-top: 1px solid var(--border); font-weight: 600; }
   .load-panel p { margin: 0.6rem 0 0; color: var(--muted); font-size: 0.75rem; line-height: 1.35; }
-  header .status > span { display: block; }
+  header .status > span { display: block; overflow: hidden; text-overflow: ellipsis; }
   header .status .progress { color: var(--accent); }
   header .status .failed { color: var(--red); }
   .btn {
@@ -299,7 +309,8 @@ try {
     .toolbar { flex-wrap: wrap; }
     .toolbar .filters { order: 1; flex-basis: 100%; }
     .toolbar input { width: 12rem; }
-    header .brand .tagline { display: none; }
+    /* The logo alone says which tool this is (the tab too): its name leaves the room to the sprint's. */
+    header .brand .name { display: none; }
   }
   .filters button.qf .n { margin-left: 0.3rem; font-size: 0.7rem; opacity: 0.7; }
   .filters .more-labels {
@@ -336,8 +347,7 @@ try {
     width: 1.2rem; height: 1.2rem; fill: none; stroke: currentColor; stroke-width: 1.8;
     stroke-linecap: round; stroke-linejoin: round;
   }
-  .icon-btn.notify[aria-pressed="true"] { color: var(--accent); }
-  .icon-btn.notify[aria-pressed="true"] .slash { display: none; }
+  .icon-btn.notify.on .slash { display: none; }
 
   main { flex: 1; min-height: 0; overflow: auto; padding: 0 1.2rem 1rem; }
   .board { display: grid; grid-template-columns: repeat(var(--cols, 10), minmax(12.5rem, 1fr)); gap: 0.5rem; min-height: 100%; }
@@ -702,11 +712,10 @@ try {
   </div>
   <!-- On the right, in the corner: the board's data (what changed, its freshness, the load put on Jira). -->
   <div class="right">
-    <div class="activity" id="activity" hidden>
-      <button type="button" class="load-btn activity-btn" id="activity-btn" aria-expanded="false" aria-controls="activity-panel"></button>
+    <div class="activity" id="activity">
+      <button type="button" class="icon-btn notify" id="activity-btn" aria-expanded="false" aria-controls="activity-panel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16.5 V11 a6 6 0 0 1 12 0 V16.5 L19.5 18 H4.5 Z"/><path d="M10 21 h4"/><path class="slash" d="M4 3 L20 21"/></svg><span class="badge" id="activity-count" hidden></span></button>
       <div class="load-panel activity-panel" id="activity-panel" hidden></div>
     </div>
-    <button type="button" class="icon-btn notify" id="notify" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16.5 V11 a6 6 0 0 1 12 0 V16.5 L19.5 18 H4.5 Z"/><path d="M10 21 h4"/><path class="slash" d="M4 3 L20 21"/></svg></button>
     <div class="jira-load">
       <button type="button" class="load-btn" id="load" aria-expanded="false" aria-controls="load-panel"></button>
       <div class="load-panel" id="load-panel" hidden></div>
@@ -852,6 +861,8 @@ const VIEW_KEY = "sprint-board.view";
 const FILTERS_EXPANDED_KEY = "sprint-board.filtersExpanded";
 // Colleagues' quick filters shown as buttons up to this many; past it, they go in one list.
 const PEOPLE_AS_BUTTONS = 4;
+// Past this, the bell's count reads "99+": the exact number is in its title and panel.
+const ACTIVITY_BADGE_MAX = 99;
 // Room kept between the last filter shown and the "+N more" button.
 const FILTERS_GAP_PX = 8;
 const DOCK_KEY = "sprint-board.panelDock";
@@ -1944,14 +1955,14 @@ const formatPoints = n => String(n);
 function renderStatus() {
   const board = currentBoard();
   const time = at => new Date(at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-  const parts = [];
-  if (board) {
-    const date = new Date(board.at).toLocaleDateString("en-GB");
-    parts.push(`<span>updated at ${time(board.at)} on ${date} (${escapeHtml(compactDuration(Date.now() - board.at))} ago)</span>`);
-  }
-  if (state.refreshing) parts.push(`<span class="progress">Refreshing…</span>`);
-  if (state.lastFailure) parts.push(`<span class="failed" title="${escapeHtml(state.lastFailure.message)}">Failed at ${time(state.lastFailure.at)} — showing previous data</span>`);
-  $("status").innerHTML = parts.join("");
+  const updated = board ? `Updated ${time(board.at)} · ${new Date(board.at).toLocaleDateString("en-GB")}` : "";
+  // The second line says what is going on: a failure first, then a refresh running, else the age.
+  const second = state.lastFailure
+    ? `<span class="failed" title="${escapeHtml(`Failed at ${time(state.lastFailure.at)}, showing the previous data: ${state.lastFailure.message}`)}">Failed at ${time(state.lastFailure.at)}</span>`
+    : state.refreshing
+      ? `<span class="progress">Refreshing…</span>`
+      : board ? `<span>${escapeHtml(compactDuration(Date.now() - board.at))} ago</span>` : "";
+  $("status").innerHTML = `<span>${updated || "&nbsp;"}</span>${second || "<span>&nbsp;</span>"}`;
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -2001,9 +2012,10 @@ function renderLoad(
   detailed
 ) {
   const total = window => stats.windows[window]?.total ?? 0;
-  $("load").title = "Requests sent to Jira by Jirafe over the last minute, the last 5 and the last 15 minutes";
-  $("load").innerHTML = `<span>Jira requests · 1 / 5 / 15 min</span>` +
-    `<span class="values"><b>${total("1m")}</b><span class="sep"> · </span>${total("5m")}<span class="sep"> · </span>${total("15m")}</span>`;
+  $("load").title = `Requests sent to Jira by Jirafe: ${total("1m")} over the last minute, ${total("5m")} over 5 minutes, ${total("15m")} over 15 minutes`;
+  $("load").setAttribute("aria-label", $("load").title);
+  $("load").innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 20 V4 M4 8 L8 4 L12 8"/><path d="M16 4 V20 M12 16 L16 20 L20 16"/></svg>` +
+    `<b>${total("1m")}</b><span>/min</span>`;
   if (!detailed) return;
   const count = (window, origin) => stats.windows[window]?.byOrigin?.[origin] ?? 0;
   const rows = LOAD_ORIGINS.map(([origin, label, hint]) =>
@@ -2674,14 +2686,18 @@ function othersActivity(issues) {
 function renderActivity() {
   const issues = othersActivity(state.activity);
   const open = !$("activity-panel").hidden;
-  $("activity").hidden = !issues.length && !open;
   const count = issues.reduce((sum, issue) => sum + issue.changes.length, 0);
-  $("activity-btn").title = `What others changed since ${formatSince(state.visitSince)}: column moves, assignments, comments`;
-  $("activity-btn").innerHTML = `<span>Since ${escapeHtml(formatSince(state.visitSince))}</span>` +
-    `<span class="values"><b>${count}</b> change${count === 1 ? "" : "s"} · ${issues.length} issue${issues.length === 1 ? "" : "s"}</span>`;
+  $("activity-count").hidden = !count;
+  $("activity-count").textContent = count > ACTIVITY_BADGE_MAX ? `${ACTIVITY_BADGE_MAX}+` : count;
+  $("activity-btn").title = (count
+    ? `${count} change${count === 1 ? "" : "s"} by others on ${issues.length} issue${issues.length === 1 ? "" : "s"} since ${formatSince(state.visitSince)}`
+    : `Nothing changed by others since ${formatSince(state.visitSince)}`) +
+    (state.notify ? "" : " · desktop notifications off");
+  $("activity-btn").setAttribute("aria-label", $("activity-btn").title);
   if (!open) return;
   $("activity-panel").innerHTML = `<div class="bar"><h4>Changed by others since ${escapeHtml(formatSince(state.visitSince))}</h4>` +
-    `<button type="button" id="activity-read" title="Start a new list from now">Mark all as read</button></div>` +
+    (issues.length ? `<button type="button" id="activity-read" title="Start a new list from now">Mark all as read</button>` : "") + `</div>` +
+    `<label class="notify-toggle" title="When someone else changes one of your issues (status, comment, assignment)"><input type="checkbox" id="notify"${state.notify ? " checked" : ""}> Notify me on the desktop when one of my issues changes</label>` +
     (issues.length ? activityHtml(issues) : `<p class="muted">Nothing new.</p>`);
 }
 
@@ -2730,6 +2746,10 @@ function toggleActivityPanel(open) {
 }
 
 $("activity-btn").addEventListener("click", () => toggleActivityPanel($("activity-panel").hidden));
+$("activity-panel").addEventListener("change", e => {
+  // Refused by the browser, the box goes back to what is in force.
+  if (e.target.id === "notify") toggleNotify().finally(renderActivity);
+});
 $("activity-panel").addEventListener("click", e => {
   if (e.target.closest("#activity-read")) {
     state.visitSince = Date.now();
@@ -2839,13 +2859,9 @@ async function toggleNotify() {
 }
 
 function renderNotifyButton() {
-  $("notify").setAttribute("aria-pressed", String(state.notify));
-  $("notify").title = state.notify
-    ? "Notifying you when someone changes one of your issues — click to stop"
-    : "Notify me when someone changes one of my issues (status, comment, assignment)";
+  $("activity-btn").classList.toggle("on", state.notify);
+  renderActivity();
 }
-
-$("notify").addEventListener("click", toggleNotify);
 
 // At each poll rather than at each render: a card stops shining once its change gets old, without redrawing
 // the board.

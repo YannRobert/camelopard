@@ -240,7 +240,7 @@ browser ──► http://localhost:8766 ──► Jira
   that changed. A change made elsewhere then reaches the open detail and the board within about 45 seconds.
   Opening an issue resyncs it from Jira only when neither its copy nor the last pass is recent: a pass
   that did not find it among the changed issues vouches for its copy.
-- **Since your last visit** (button in the header, shown when there is news): what others changed since
+- **Since your last visit** (the bell in the header, which counts them): what others changed since
   the page was last seen — column moves, assignments, comments — from the local copy's history. A visit
   ends after an hour unseen: a reload keeps the list, the next morning starts a new one.
 - **Stand-up** (`S`, or the people icon in the header): whoever speaks hands over to anyone, so the floor
@@ -250,7 +250,7 @@ browser ──► http://localhost:8766 ──► Jira
   then what others changed on their issues. The board shows their cards, plus the issues they acted on and
   handed over (dashed). The row greys out those who already spoke and counts those left. `Escape` twice
   returns to the whole board. Work that leaves no trace in Jira cannot show.
-- **Notifications** (bell in the header): when someone else changes an issue assigned to you, the
+- **Notifications** (a box in the bell's panel): when someone else changes an issue assigned to you, the
   browser shows what changed (status, comment, assignment…), read from the local copy at no Jira cost. A
   hidden tab keeps asking `/changes?watch=0`, which does not speed up the sync: the notification then
   comes with the next regular pass, within `--sync-interval`.
