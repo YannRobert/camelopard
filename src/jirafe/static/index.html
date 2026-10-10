@@ -256,6 +256,7 @@ try {
     font: inherit; font-size: 0.8rem; padding: 0.15rem 0.45rem; cursor: pointer; margin-left: 0.2rem;
   }
   .filters .more-filters:hover { border-color: var(--accent); }
+  .filters .people.active { border-style: solid; border-color: var(--accent); background: var(--accent); color: var(--accent-fg); font-weight: 600; }
   .filters .more-filters.active { border-style: solid; border-color: var(--accent); color: var(--accent); font-weight: 600; }
   .filters button.qf {
     border: 0; background: transparent; color: var(--link); padding: 0.2rem 0.45rem; border-radius: 3px; cursor: pointer;
@@ -849,6 +850,8 @@ const EPIC_COLORS = {
 const THEME_KEY = "sprint-board.theme";
 const VIEW_KEY = "sprint-board.view";
 const FILTERS_EXPANDED_KEY = "sprint-board.filtersExpanded";
+// Colleagues' quick filters shown as buttons up to this many; past it, they go in one list.
+const PEOPLE_AS_BUTTONS = 4;
 // Room kept between the last filter shown and the "+N more" button.
 const FILTERS_GAP_PX = 8;
 const DOCK_KEY = "sprint-board.panelDock";
@@ -1412,15 +1415,38 @@ function displayOrder(filters) {
     .map(({ filter }) => filter);
 }
 
+function switchOnFilter(id) {
+  // An issue has only one assignee: two "person" filters combined with AND would empty the board.
+  if (isPersonFilter(id)) for (const other of [...state.quick]) if (isPersonFilter(other)) state.quick.delete(other);
+  state.quick.add(id);
+}
+
+function quickFiltersChanged() {
+  writeUrl();
+  loadMissingFilterKeys();
+  renderFilters();
+  renderBoard();
+}
+
 function renderFilters() {
   const board = currentBoard();
   const filters = displayOrder(state.meta?.quickFilters ?? []);
+  // One filter per colleague makes a long row of names to read through: past a few, they go in one list,
+  // like the labels' "+N more". The user's own filter stays a button, found at a glance.
+  const named = filters.filter(f => ASSIGNEE_IS.test(f.query) && !isMyFilter(f));
+  const listed = new Set(named.length > PEOPLE_AS_BUTTONS ? named.map(f => f.id) : []);
+  const shown = filters.filter(f => !listed.has(f.id));
+  const people = listed.size ? peopleHtml(named) : "";
   const labels = labelsHtml(board);
+  const items = shown.map(f => ({
+    person: isPersonFilter(f.id),
+    html: `<button type="button" class="qf${isMyFilter(f) ? " me" : ""}" data-qf="${f.id}" aria-pressed="${state.quick.has(f.id)}" aria-busy="${state.filtersLoading.has(f.id)}" ` +
+      `title="${isMyFilter(f) ? "You · " : ""}${escapeHtml(f.description || f.query)}">${isMyFilter(f) ? myName(f.name) : escapeHtml(f.name)}</button>`,
+  }));
+  if (people) items.splice(shown.some(isMyFilter) ? 1 : 0, 0, { person: true, html: people });
   $("filters").innerHTML =
     (filters.length ? `<span class="label">Quick filters</span>` : "") +
-    filters.map((f, index) => (index > 0 && isPersonFilter(filters[index - 1].id) && !isPersonFilter(f.id) ? `<span class="qf-sep" aria-hidden="true"></span>` : "") +
-      `<button type="button" class="qf${isMyFilter(f) ? " me" : ""}" data-qf="${f.id}" aria-pressed="${state.quick.has(f.id)}" aria-busy="${state.filtersLoading.has(f.id)}" ` +
-      `title="${isMyFilter(f) ? "You · " : ""}${escapeHtml(f.description || f.query)}">${isMyFilter(f) ? myName(f.name) : escapeHtml(f.name)}</button>`).join("") +
+    items.map((item, index) => (index > 0 && items[index - 1].person && !item.person ? `<span class="qf-sep" aria-hidden="true"></span>` : "") + item.html).join("") +
     (filters.length && labels ? `<span class="qf-sep labels-sep" aria-hidden="true"></span>` : "") + labels +
     `<button type="button" class="more-filters" id="more-filters" aria-controls="filters" hidden></button>`;
   // Typing in the search does not go through here: the field is only rewritten when the search changes
@@ -1466,6 +1492,15 @@ function fitFilters() {
 
 // The line's room changes with the window, and with the count beside it.
 new ResizeObserver(fitFilters).observe($("filters"));
+
+// The colleagues' filters as one list: the one switched on is selected, the first entry switches it off.
+function peopleHtml(named) {
+  const on = named.find(f => state.quick.has(f.id));
+  return `<select id="people-filter" class="more-labels people${on ? " active" : ""}" aria-label="Filter by assignee">` +
+    `<option value="">${on ? "Everyone" : `People · ${named.length}`}</option>` +
+    named.map(f => `<option value="${f.id}"${f === on ? " selected" : ""}>${escapeHtml(f.name)}</option>`).join("") +
+    `</select>`;
+}
 
 // Issues and story points displayed — view columns and filters — out of the sprint total:
 // "21 / 49 · 37 / 94 pts". In a Dev view, for instance, the share left on the dev side.
@@ -3140,15 +3175,9 @@ document.addEventListener("click", e => {
   const quick = e.target.closest("[data-qf]");
   if (quick) {
     const id = Number(quick.dataset.qf);
-    if (!state.quick.delete(id)) {
-      // An issue has only one assignee: two "person" filters combined with AND would empty the board.
-      if (isPersonFilter(id)) for (const other of [...state.quick]) if (isPersonFilter(other)) state.quick.delete(other);
-      state.quick.add(id);
-    }
-    writeUrl();
-    loadMissingFilterKeys();
-    renderFilters();
-    renderBoard();
+    if (state.quick.has(id)) state.quick.delete(id);
+    else switchOnFilter(id);
+    quickFiltersChanged();
     return;
   }
   const cardEl = e.target.closest(".card");
@@ -4143,6 +4172,11 @@ document.addEventListener("keydown", e => {
 
 document.addEventListener("change", e => {
   if (e.target.id === "more-labels" && e.target.value) toggleLabel(e.target.value);
+  if (e.target.id === "people-filter") {
+    for (const id of [...state.quick]) if (isPersonFilter(id)) state.quick.delete(id);
+    if (e.target.value) switchOnFilter(Number(e.target.value));
+    quickFiltersChanged();
+  }
 });
 
 $("sprint").addEventListener("change", e => {
