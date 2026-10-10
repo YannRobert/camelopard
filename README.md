@@ -191,7 +191,8 @@ Nothing here needs administrator rights: Jirafe runs as you.
 | `--board` | `boardId` from the configuration | Jira board id (`rapidView`) |
 | `--port` | `8766` | local listening port |
 | `--mirror-dir` | see [Local copy](#local-copy) | directory of the local copy of issues |
-| `--sync-interval` | `300` | seconds between two incremental background syncs (30 s while a page is visible) |
+| `--sync-interval` | `300` | seconds between two incremental background syncs |
+| `--watch-interval` | `30` | the same while a page is visible: fewer Jira requests when longer, changes made elsewhere show later |
 | `--quiet` | — | do not log every request |
 | `--open` | — | open the browser once the server is ready |
 
@@ -234,9 +235,9 @@ browser ──► http://localhost:8766 ──► Jira
   any other costs another whole board, asked for only while the filter is switched on.
 - **Local copy**: one JSON file per issue. Full sweep at startup, then once a day; in between, only
   modified issues are resynced. Jira cannot notify a local tool (its webhooks need an administrator and an
-  address Jira can reach), so it is asked: every 5 minutes, and every 30 seconds while a page is visible,
-  with a light search (modification dates only) followed by the full fetch of the issues that changed.
-  A change made elsewhere then reaches the open detail and the board within about 45 seconds.
+  address Jira can reach), so it is asked: every 5 minutes, and every 30 seconds (`--watch-interval`) while
+  a page is visible, with a light search (modification dates only) followed by the full fetch of the issues
+  that changed. A change made elsewhere then reaches the open detail and the board within about 45 seconds.
   Opening an issue resyncs it from Jira only when neither its copy nor the last pass is recent: a pass
   that did not find it among the changed issues vouches for its copy.
 - **Since your last visit** (button in the header, shown when there is news): what others changed since

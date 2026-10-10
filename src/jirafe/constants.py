@@ -36,9 +36,10 @@ FULL_SYNC_INTERVAL_S = 24 * 3600
 # Overlap between two incremental passes: covers the clock skew with Jira and the duration of the pass.
 SYNC_OVERLAP_MIN = 3
 SEARCH_PAGE_SIZE = 50
-# While a page is watching (it asks for GET /changes every 15 s), the incremental pass runs this often
-# instead of every --sync-interval; without news from the page for WATCH_TTL_S, it slows down again.
-WATCH_INTERVAL_S = 30
+# While a page is watching (it asks for GET /changes every 15 s), the incremental pass runs every
+# --watch-interval instead of every --sync-interval; without news from the page for WATCH_TTL_S, it slows
+# down again.
+DEFAULT_WATCH_INTERVAL_S = 30
 WATCH_TTL_S = 45
 # The page highlights the cards of issues changed in Jira for less than this (recentMinutes in the
 # configuration): within the same working session, what colleagues changed catches the eye.
@@ -99,10 +100,11 @@ RELAY_DECODE_ROUNDS = 3
 # Below this age, the local copy of an issue (synced when the detail was opened or by the background sync)
 # is returned as is: reopening an issue or switching tabs costs no request to Jira.
 ISSUE_FRESH_S = 30
-# An issue of the sprints is also fresh while the last pass of the background sync is this recent: that pass
-# asked Jira which issues had changed, and this one was not among them. A little above WATCH_INTERVAL_S, for
-# the time a pass takes, so that the copy of an issue nobody touches stays fresh while a page is watching.
-CHECKED_FRESH_S = 45
+# An issue of the sprints is also fresh while the last pass of the background sync is less than
+# --watch-interval plus this old: that pass asked Jira which issues had changed, and this one was not among
+# them. The margin covers the time a pass takes, so that the copy of an issue nobody touches stays fresh while
+# a page is watching.
+CHECKED_MARGIN_S = 15
 RANK_PATH = "rest/agile/1.0/issue/rank"
 ASSIGNEE_PATH = "rest/api/2/issue/{key}/assignee"
 TRANSITIONS_PATH = "rest/api/2/issue/{key}/transitions"

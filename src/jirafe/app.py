@@ -24,7 +24,7 @@ page uses — ~5 KB compressed, against ~250 KB for the agile API without a fiel
 
 Local mirror: one JSON file per issue under --mirror-dir (outside the repository), with its sync date. A
 thread keeps it up to date: full sweep of the active sprints at startup then once a day, and in between,
-every --sync-interval seconds (every WATCH_INTERVAL_S while a page is watching), only the issues modified
+every --sync-interval seconds (every --watch-interval while a page is watching), only the issues modified
 since the previous pass.
 
 Usage:
@@ -46,7 +46,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 from .config import ConfigError, load_config
-from .constants import DEFAULT_PORT, DEFAULT_RECENT_MINUTES, DEFAULT_SYNC_INTERVAL_S
+from .constants import DEFAULT_PORT, DEFAULT_RECENT_MINUTES, DEFAULT_SYNC_INTERVAL_S, DEFAULT_WATCH_INTERVAL_S
 from .handler import make_handler
 from .jira import JiraClient
 from .meter import RequestMeter
@@ -76,9 +76,12 @@ def main():
     parser.add_argument("--board", type=int, help="Jira board id, or rapidView (overrides boardId from the configuration)")
     parser.add_argument("--mirror-dir", type=Path, default=cache_dir(), help="directory of the local copy of issues (default: %(default)s)")
     parser.add_argument("--sync-interval", type=int, default=DEFAULT_SYNC_INTERVAL_S, help="seconds between two background syncs (default: %(default)s)")
+    parser.add_argument("--watch-interval", type=int, default=DEFAULT_WATCH_INTERVAL_S, help="seconds between two background syncs while a page is visible (default: %(default)s)")
     parser.add_argument("--quiet", action="store_true", help="do not log every request")
     parser.add_argument("--open", action="store_true", help="open the board in the browser once the server is ready")
     args = parser.parse_args()
+    if args.watch_interval < 1:
+        parser.error("--watch-interval must be at least 1 second")
 
     try:
         config = load_config(
@@ -120,7 +123,8 @@ def main():
             upstream
         ),
         board_id,
-        detail_fields(custom_fields)
+        detail_fields(custom_fields),
+        args.watch_interval
     )
     try:
         server = JirafeServer(

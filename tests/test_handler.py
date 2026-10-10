@@ -452,6 +452,21 @@ class HandlerTest(unittest.TestCase):
         status, _ = self.call("GET", "/issue/ABC-1?sync=1&force=1")
         self.assertEqual(jira.paths, ["rest/api/2/issue/ABC-1?fields=" + BASE_DETAIL_FIELDS + "&expand=renderedFields,changelog,transitions"])
 
+    def test_the_last_pass_vouches_for_a_copy_until_the_next_one_is_due(self):
+        jira = self.mirror._jira
+        jira.issues[0]["changelog"] = {"histories": []}
+        with mock.patch("jirafe.mirror.time.time", return_value=time.time() - 600):
+            self.mirror.sync_board()
+        self.mirror.sync_board()
+        checked = self.mirror.checked_at("ABC-1")
+        jira.paths.clear()
+        with mock.patch("jirafe.handler.time.time", return_value=checked + self.mirror.checked_fresh_s - 1):
+            self.call("GET", "/issue/ABC-1?sync=1")
+        self.assertEqual(jira.paths, [])
+        with mock.patch("jirafe.handler.time.time", return_value=checked + self.mirror.checked_fresh_s + 1):
+            self.call("GET", "/issue/ABC-1?sync=1")
+        self.assertEqual(len(jira.paths), 1)
+
     def test_labels_from_the_local_copy_without_calling_jira(self):
         self.mirror.sync_board()
         status, body = self.call("GET", "/labels")

@@ -13,8 +13,9 @@ from .constants import (
     FULL_SYNC_INTERVAL_S,
     ISSUE_EXPAND,
     SEARCH_PAGE_SIZE,
+    CHECKED_MARGIN_S,
+    DEFAULT_WATCH_INTERVAL_S,
     SYNC_OVERLAP_MIN,
-    WATCH_INTERVAL_S,
     WATCH_TTL_S,
 )
 from .files import write_json
@@ -30,7 +31,8 @@ class IssueMirror:
             directory,
             jira,
             board_id,
-            fields
+            fields,
+            watch_interval_s=DEFAULT_WATCH_INTERVAL_S
     ):
         self._issues = Path(directory) / str(board_id) / "issues"
         self._state_file = Path(directory) / str(board_id) / "sync-state.json"
@@ -38,6 +40,9 @@ class IssueMirror:
         self._jira = jira
         self._board_id = board_id
         self._fields = fields
+        self.watch_interval_s = watch_interval_s
+        # How long the last pass vouches for the copies it found unchanged: until the next one is due.
+        self.checked_fresh_s = watch_interval_s + CHECKED_MARGIN_S
         # What determines the content of a local copy: if it changes, the next pass is a full one.
         self._signature = f"{fields}&expand={ISSUE_EXPAND}"
         self._lock = threading.Lock()
@@ -73,7 +78,7 @@ class IssueMirror:
 
     def watch(self):
         """A page is showing the board: until WATCH_TTL_S without news from it, passes run every
-        WATCH_INTERVAL_S."""
+        watch_interval_s."""
         self._watched_at = time.monotonic()
 
     def watched(self):
@@ -337,8 +342,8 @@ def run_background_sync(
         interval_s,
         quiet
 ):
-    """A pass every interval_s; every WATCH_INTERVAL_S while a page is watching, so that a change made in
-    Jira shows in it within a minute rather than five."""
+    """A pass every interval_s; every mirror.watch_interval_s while a page is watching, so that a change made
+    in Jira shows in it within a minute rather than five."""
     last_regular = None
     while True:
         started = time.monotonic()
@@ -353,4 +358,4 @@ def run_background_sync(
                     print(f"[mirror] {written} issue(s) synced in {time.monotonic() - started:.1f} s", flush=True)
             except (OSError, http.client.HTTPException, JiraError, ValueError, KeyError) as error:
                 print(f"[mirror] sync failed: {error}", flush=True)
-        time.sleep(min(interval_s, WATCH_INTERVAL_S))
+        time.sleep(min(interval_s, mirror.watch_interval_s))

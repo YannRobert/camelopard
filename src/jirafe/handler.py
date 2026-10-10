@@ -9,7 +9,6 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 from .constants import (
     ASSIGNEE_PATH,
-    CHECKED_FRESH_S,
     CONFIG_PLACEHOLDER,
     DEFAULT_RECENT_MINUTES,
     EPOCH_MS,
@@ -379,7 +378,7 @@ def make_handler(
                 and "changelog" in cached["data"]
                 and (
                     time.time() - datetime.fromisoformat(cached["syncedAt"]).timestamp() < ISSUE_FRESH_S
-                    or (checked is not None and time.time() - checked < CHECKED_FRESH_S)
+                    or (checked is not None and time.time() - checked < mirror.checked_fresh_s)
                 )
             )
             if query.get("sync") != ["1"] or (fresh and query.get("force") != ["1"]):

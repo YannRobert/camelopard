@@ -237,6 +237,17 @@ class IncrementalPassTest(unittest.TestCase):
         self.mirror.sync_board()
         self.assertTrue([path for path in self.jira.paths if "/sprint?" in path])
 
+    def test_a_longer_watch_interval_vouches_longer_for_the_copies(self):
+        mirror = IssueMirror(
+            self.directory.name,
+            self.jira,
+            42,
+            BASE_DETAIL_FIELDS,
+            120
+        )
+        self.assertEqual(mirror.watch_interval_s, 120)
+        self.assertGreater(mirror.checked_fresh_s, 120)
+
     def test_watched_until_the_page_stops_asking(self):
         self.assertFalse(self.mirror.watched())
         with mock.patch("jirafe.mirror.time.monotonic", return_value=1000):
