@@ -256,8 +256,16 @@ try {
   .toolbar > .views, .toolbar > .icon-btn { flex: none; }
   /* The filters take what the view, the search and the count leave, on one line (see fitFilters). */
   .filters { flex: 1 1 0; min-width: 0; display: flex; flex-wrap: nowrap; align-items: center; gap: 0.2rem 0.3rem; overflow: hidden; white-space: nowrap; }
-  .filters.expanded { flex-wrap: wrap; }
-  .toolbar:has(.filters.expanded) { align-items: flex-start; }
+  .toolbar { position: relative; }
+  .filters.filters-more {
+    position: absolute; top: calc(100% - 0.4rem); right: 1.2rem; z-index: 30; flex-wrap: wrap; overflow: visible;
+    white-space: normal; row-gap: 0.4rem; padding: 0.6rem 0.7rem; border: 1px solid var(--border); border-radius: 0.6rem;
+    background: var(--column); box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+  }
+  .filters.filters-more[hidden] { display: none; }
+  /* In the popover, a separator starts a new line instead of standing between two buttons. */
+  .filters.filters-more .qf-sep, .filters.filters-more .qf-sep.labels-sep { flex-basis: 100%; height: 0; margin: 0.15rem 0; background: none; }
+  .filters .more-filters[aria-expanded="true"] { border-style: solid; border-color: var(--accent); }
   .filters > [hidden] { display: none; }
   .filters .label { color: var(--muted); font-weight: 600; font-size: 0.8rem; letter-spacing: 0.02em; text-transform: uppercase; margin-right: 0.4rem; }
   .filters .label:not(:first-child) { margin-left: 0.2rem; }
@@ -737,6 +745,7 @@ try {
   <span class="views" id="views" role="group" aria-label="Board view"></span>
   <button type="button" class="icon-btn standup-btn" id="standup-toggle" aria-pressed="false" title="Stand-up: each one's cards in turn, in the order the floor goes (S)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20 c0-3.6 2.7-6 6-6 s6 2.4 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14.1 c2.6 0.2 4.5 2.4 4.5 5.4"/></svg></button>
   <div class="filters" id="filters" role="group" aria-label="Quick filters and labels"></div>
+  <div class="filters filters-more" id="filters-more" role="group" aria-label="Other filters" hidden></div>
   <div class="search">
     <input id="q" type="search" placeholder="Search (key, summary, type…)  /" title="Key, summary, assignee, epic, labels, type, status, priority — every word must match. Keywords: type:bug status:&quot;in progress&quot; label:back priority:high epic:login @name @me @none; a leading - excludes (-label:back)" aria-label="Search" autocomplete="off">
     <span class="count" id="count"></span>
@@ -860,7 +869,6 @@ const EPIC_COLORS = {
 };
 const THEME_KEY = "sprint-board.theme";
 const VIEW_KEY = "sprint-board.view";
-const FILTERS_EXPANDED_KEY = "sprint-board.filtersExpanded";
 // Colleagues' quick filters shown as buttons up to this many; past it, they go in one list.
 const PEOPLE_AS_BUTTONS = 4;
 // Past this, the bell's count reads "99+": the exact number is in its title and panel.
@@ -931,7 +939,8 @@ const state = {
   picker: null,
   assigning: new Set(),
   autoRefresh: readPreference(AUTO_REFRESH_KEY) !== "false",
-  filtersExpanded: readPreference(FILTERS_EXPANDED_KEY) === "true",
+  // The popover of the filters past the end of their line.
+  filtersOpen: false,
   dock: readPreference(DOCK_KEY) === "bottom" ? "bottom" : "side",
   // Not remembered across reloads: a maximized detail hides the board the page opens on.
   maximized: false,
@@ -1457,6 +1466,8 @@ function renderFilters() {
       `title="${isMyFilter(f) ? "You · " : ""}${escapeHtml(f.description || f.query)}">${isMyFilter(f) ? myName(f.name) : escapeHtml(f.name)}</button>`,
   }));
   if (people) items.splice(shown.some(isMyFilter) ? 1 : 0, 0, { person: true, html: people });
+  // The popover holds the previous rendering's filters: rebuilt from scratch, like the line.
+  $("filters-more").replaceChildren();
   $("filters").innerHTML =
     (filters.length ? `<span class="label">Quick filters</span>` : "") +
     items.map((item, index) => (index > 0 && items[index - 1].person && !item.person ? `<span class="qf-sep" aria-hidden="true"></span>` : "") + item.html).join("") +
@@ -1475,12 +1486,16 @@ function renderFilters() {
 function fitFilters() {
   const rail = $("filters");
   const more = $("more-filters");
+  const popover = $("filters-more");
   if (!more) return;
+  // Those moved to the popover by the previous fit come back in their place, to be measured again.
+  for (const el of [...popover.children]) rail.insertBefore(el, more);
   const items = [...rail.children].filter(el => el !== more);
-  rail.classList.remove("expanded");
-  items.forEach(el => { el.hidden = false; });
   more.hidden = true;
-  if (rail.scrollWidth <= rail.clientWidth) return;
+  if (rail.scrollWidth <= rail.clientWidth) {
+    showMoreFilters(false);
+    return;
+  }
   more.hidden = false;
   more.textContent = "+ 99 more";
   const limit = rail.getBoundingClientRect().left + rail.clientWidth - more.offsetWidth - FILTERS_GAP_PX;
@@ -1489,18 +1504,22 @@ function fitFilters() {
   // A separator or a group title left last on the line would announce nothing.
   for (let last = cut - 1; last >= 0 && items[last].matches(".qf-sep, .label"); last--) hidden.unshift(items[last]);
   const count = hidden.reduce((sum, el) => sum + (el.matches("button") ? 1 : el.matches("select") ? el.options.length - 1 : 0), 0);
-  const on = hidden.filter(el => el.getAttribute("aria-pressed") === "true").length;
+  const on = hidden.filter(el => el.getAttribute("aria-pressed") === "true" || el.matches(".people.active")).length;
+  // The rest waits in a popover over the cards: opening it moves nothing on the page.
+  popover.append(...hidden);
   more.classList.toggle("active", on > 0);
-  more.setAttribute("aria-expanded", String(state.filtersExpanded));
-  if (state.filtersExpanded) {
-    rail.classList.add("expanded");
-    more.textContent = "Show less";
-    more.title = "Keep the filters to one line";
-    return;
-  }
-  hidden.forEach(el => { el.hidden = true; });
   more.textContent = `+ ${count} more` + (on ? ` · ${on} on` : "");
-  more.title = on ? `${on} of the hidden filters ${on > 1 ? "are" : "is"} on` : "Show every filter";
+  more.title = on ? `${on} of the other filters ${on > 1 ? "are" : "is"} on` : "Show the other filters";
+  showMoreFilters(state.filtersOpen);
+}
+
+// Open under the filters line, from its start to the window's right edge; picking a filter closes it.
+function showMoreFilters(open) {
+  const popover = $("filters-more");
+  state.filtersOpen = open && popover.childElementCount > 0;
+  popover.hidden = !state.filtersOpen;
+  $("more-filters")?.setAttribute("aria-expanded", String(state.filtersOpen));
+  if (state.filtersOpen) popover.style.left = `${$("filters").offsetLeft}px`;
 }
 
 // The line's room changes with the window, and with the count beside it.
@@ -3167,17 +3186,13 @@ function writeUrl() {
 // ---------- Events ----------
 
 document.addEventListener("click", e => {
-  if (e.target.closest("#clear-filters")) {
-    clearFilters();
+  if (e.target.closest("#more-filters")) {
+    showMoreFilters(!state.filtersOpen);
     return;
   }
-  if (e.target.closest("#more-filters")) {
-    state.filtersExpanded = !state.filtersExpanded;
-    savePreference(
-      FILTERS_EXPANDED_KEY,
-      String(state.filtersExpanded)
-    );
-    fitFilters();
+  if (state.filtersOpen && !e.target.closest("#filters-more")) showMoreFilters(false);
+  if (e.target.closest("#clear-filters")) {
+    clearFilters();
     return;
   }
   const viewButton = e.target.closest("[data-view]");
@@ -3187,11 +3202,13 @@ document.addEventListener("click", e => {
   }
   const labelButton = e.target.closest("[data-label]");
   if (labelButton) {
+    state.filtersOpen = false;
     toggleLabel(labelButton.dataset.label);
     return;
   }
   const quick = e.target.closest("[data-qf]");
   if (quick) {
+    state.filtersOpen = false;
     const id = Number(quick.dataset.qf);
     if (state.quick.has(id)) state.quick.delete(id);
     else switchOnFilter(id);
@@ -4144,6 +4161,11 @@ document.addEventListener("keydown", e => {
     toggleAboutPanel(false);
     return;
   }
+  if (e.key === "Escape" && state.filtersOpen) {
+    showMoreFilters(false);
+    $("more-filters").focus();
+    return;
+  }
   if (e.key === "Escape" && !$("activity-panel").hidden) {
     toggleActivityPanel(false);
     return;
@@ -4189,6 +4211,7 @@ document.addEventListener("keydown", e => {
 });
 
 document.addEventListener("change", e => {
+  if (["more-labels", "people-filter"].includes(e.target.id)) state.filtersOpen = false;
   if (e.target.id === "more-labels" && e.target.value) toggleLabel(e.target.value);
   if (e.target.id === "people-filter") {
     for (const id of [...state.quick]) if (isPersonFilter(id)) state.quick.delete(id);
