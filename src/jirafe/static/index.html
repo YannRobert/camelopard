@@ -846,6 +846,9 @@ const ASSIGNEE_IS_ME = /^\s*assignee\s*=\s*currentUser\(\)\s*$/i;
 const ASSIGNEE_IS = /^\s*assignee\s*=\s*(?:"([^"]+)"|([\w.@-]+))\s*$/i;
 const ASSIGNEE_NOT_IN = /^\s*assignee\s+not\s+in\s*\(([^)]*)\)\s*$/i;
 const ASSIGNEE_EMPTY = /^\s*assignee\s+(?:is\s+(?:empty|null)|=\s*(?:empty|null))\s*$/i;
+// "labels = x", "issuetype in (Bug, Task)": what the board already shows, so the page evaluates them instead
+// of asking Jira for a whole board. Type ids ("issuetype = 1") are left to Jira.
+const FIELD_IS = /^\s*(labels|issuetype|type)\s*(?:=\s*(?:"([^"]+)"|([\w.-]+))|in\s*\(([^)]*)\))\s*$/i;
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -990,8 +993,9 @@ async function ensureMeta() {
   };
 }
 
-// A quick filter on the assignee ("= X", "not in (…)", "is EMPTY") is evaluated in the page; any other JQL
-// is evaluated by Jira, which returns the matching issues at each refresh — the JQL is never approximated.
+// A quick filter on the assignee ("= X", "not in (…)", "is EMPTY"), the labels or the issue type is
+// evaluated in the page, as a predicate (issue, board); any other JQL is evaluated by Jira, which returns
+// the matching issues (null here): beyond these simple forms, the JQL is never approximated.
 function clientPredicate(filter) {
   if (ASSIGNEE_IS_ME.test(filter.query)) {
     return issue => Boolean(issue.assignee) && issue.assignee.toLowerCase() === state.meta.me.toLowerCase();
@@ -1009,6 +1013,17 @@ function clientPredicate(filter) {
     return issue => !issue.assignee || !team.has(issue.assignee.toLowerCase());
   }
   if (ASSIGNEE_EMPTY.test(filter.query)) return issue => !issue.assignee;
+  const field = filter.query.match(FIELD_IS);
+  if (field) {
+    const values = (field[4]?.split(",") ?? [field[2] ?? field[3]]).map(value => value.trim().replace(/^"|"$/g, "").toLowerCase());
+    if (field[1].toLowerCase() === "labels") {
+      // Case aside, as the page's label buttons, which merge "front" and "FRONT".
+      return issue => (issue.labels ?? []).some(label => values.includes(label.toLowerCase()));
+    }
+    if (values.every(value => !/^\d+$/.test(value))) {
+      return (issue, board) => values.includes((board.types[issue.typeId]?.name ?? "").toLowerCase());
+    }
+  }
   return null;
 }
 
@@ -1669,7 +1684,10 @@ function filterPredicate(
   board
 ) {
   const client = clientPredicate(filter);
-  if (client) return client;
+  if (client) return issue => client(
+    issue,
+    board
+  );
   const keys = board.filterKeys?.[filter.id];
   if (!keys) return () => true;
   const set = new Set(keys);
