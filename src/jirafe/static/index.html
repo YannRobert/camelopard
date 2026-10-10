@@ -343,9 +343,9 @@ try {
   }
   .icon-btn.clear:not(:disabled) { color: var(--accent); }
   .icon-btn.clear:disabled { opacity: 0.35; cursor: default; background: none; }
-  .icon-btn.notify, .icon-btn.standup-btn { display: inline-flex; padding: 0.3rem 0.4rem; }
+  .icon-btn.notify, .icon-btn.standup-btn, #theme { display: inline-flex; padding: 0.3rem 0.4rem; }
   .icon-btn.standup-btn[aria-pressed="true"] { color: var(--accent-fg); background: var(--accent); }
-  .icon-btn.notify svg, .icon-btn.standup-btn svg {
+  .icon-btn.notify svg, .icon-btn.standup-btn svg, #theme svg {
     width: 1.2rem; height: 1.2rem; fill: none; stroke: currentColor; stroke-width: 1.8;
     stroke-linecap: round; stroke-linejoin: round;
   }
@@ -4230,8 +4230,11 @@ $("theme").addEventListener("click", () => {
 
 function renderThemeButton() {
   const light = document.documentElement.dataset.theme === "light";
-  $("theme").textContent = light ? "☾" : "☀";
+  $("theme").innerHTML = light
+    ? `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5 A8 8 0 1 1 9.5 4 A6.5 6.5 0 0 0 20 14.5 Z"/></svg>`
+    : `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5 V5 M12 19 V21.5 M2.5 12 H5 M19 12 H21.5 M5.3 5.3 L7 7 M17 17 L18.7 18.7 M5.3 18.7 L7 17 M17 7 L18.7 5.3"/></svg>`;
   $("theme").title = light ? "Switch to the dark theme" : "Switch to the light theme";
+  $("theme").setAttribute("aria-label", $("theme").title);
 }
 $("panel-close").addEventListener("click", closeDetail);
 // At the bottom, each detail column scrolls on its own: scrolling is captured on all of them.
