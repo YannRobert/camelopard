@@ -216,9 +216,9 @@ try {
   .load-panel thead th { color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--border); }
   .load-panel td { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
   .load-panel td:first-child { font-family: inherit; }
-  .load-panel td .hint { display: block; color: var(--faint); font-size: 0.7rem; }
+  .load-panel td .hint { display: block; color: var(--muted); font-size: 0.8rem; }
   .load-panel tfoot td { border-top: 1px solid var(--border); font-weight: 600; }
-  .load-panel p { margin: 0.6rem 0 0; color: var(--muted); font-size: 0.75rem; line-height: 1.35; }
+  .load-panel p { margin: 0.6rem 0 0; color: var(--muted); font-size: 0.8rem; line-height: 1.35; }
   header .status > span { display: block; overflow: hidden; text-overflow: ellipsis; }
   header .status .progress { color: var(--accent); }
   header .status .failed { color: var(--red); }
@@ -259,7 +259,7 @@ try {
   .filters.expanded { flex-wrap: wrap; }
   .toolbar:has(.filters.expanded) { align-items: flex-start; }
   .filters > [hidden] { display: none; }
-  .filters .label { color: var(--muted); font-weight: 600; font-size: 0.75rem; letter-spacing: 0.02em; text-transform: uppercase; margin-right: 0.4rem; }
+  .filters .label { color: var(--muted); font-weight: 600; font-size: 0.8rem; letter-spacing: 0.02em; text-transform: uppercase; margin-right: 0.4rem; }
   .filters .label:not(:first-child) { margin-left: 0.2rem; }
   .filters .more-filters {
     flex: none; border: 1px dashed var(--border); border-radius: 3px; background: none; color: var(--link);
@@ -289,6 +289,7 @@ try {
   }
   /* Search, count and clear at the end of the line: what is shown, then how to show everything again. */
   .toolbar .search { flex: none; display: flex; align-items: center; gap: 0.6rem; margin-left: auto; }
+  .toolbar input::placeholder { color: var(--muted); opacity: 1; }
   .toolbar input {
     width: 16rem; max-width: 100%; font: inherit; color: var(--text);
     background: var(--column); border: 1px solid var(--border); border-radius: 3px; padding: 0.3rem 0.6rem;
@@ -312,7 +313,8 @@ try {
     /* The logo alone says which tool this is (the tab too): its name leaves the room to the sprint's. */
     header .brand .name { display: none; }
   }
-  .filters button.qf .n { margin-left: 0.3rem; font-size: 0.7rem; opacity: 0.7; }
+  .filters button.qf .n { margin-left: 0.3rem; font-size: 0.8rem; color: var(--muted); }
+  .filters button.qf[aria-pressed="true"] .n { color: inherit; }
   .filters .more-labels {
     font: inherit; font-size: 0.8rem; color: var(--link); background: transparent; border: 1px dashed var(--border);
     border-radius: 3px; padding: 0.15rem 0.3rem; cursor: pointer; max-width: 12rem;
@@ -330,7 +332,7 @@ try {
   }
   .views button:hover { color: var(--text); }
   .views button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); font-weight: 600; }
-  .views .n { font-size: 0.7rem; opacity: 0.8; }
+  .views .n { font-size: 0.8rem; opacity: 0.8; font-variant-numeric: tabular-nums; }
   .views[hidden] { display: none; }
   .icon-btn { font-size: 1.15rem; line-height: 1; padding: 0.3rem 0.5rem; }
   /* Clear all filters (quick, labels, search); disabled when there is nothing to clear. */
