@@ -226,9 +226,12 @@ browser ──► http://localhost:8766 ──► Jira
 | `GET /activity?since=<ms>` | status moves, assignments and comments since then, per issue, from the local copy (a month at most) |
 | `GET /stats` | requests made to Jira over 1, 5 and 15 minutes, by origin; `?summary=1` gives the totals only (the header's counter) |
 | `GET /changes` | when the background sync last found a changed issue, and the recently changed issues; tells the server a page is watching, unless `?watch=0` |
+| `GET /labels` | labels of every issue of the local copy (Jira's board answer lacks them) |
 | `GET /mirror/status` | state of the local copy |
 
-- **Board in one call**: `allData.json`, the endpoint used by Jira's own board page.
+- **Board in one call**: `allData.json`, the endpoint used by Jira's own board page. Its labels come from
+  the local copy. A quick filter the page cannot evaluate itself costs another whole board: it is asked for
+  only while switched on.
 - **Local copy**: one JSON file per issue. Full sweep at startup, then once a day; in between, only
   modified issues are resynced. Jira cannot notify a local tool (its webhooks need an administrator and an
   address Jira can reach), so it is asked: every 5 minutes, and every 30 seconds while a page is visible,
