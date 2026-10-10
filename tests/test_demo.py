@@ -166,6 +166,92 @@ class DemoJiraTest(unittest.TestCase):
         self.assertNotIn(dataset.ME, authors)
 
 
+class DemoScenariosTest(unittest.TestCase):
+    """What every scenario must give Jirafe, whatever its board: the tests above only know the default one."""
+
+    def serve(self, scenario):
+        jira = fakejira.FakeJiraServer(
+            0,
+            scenario
+        )
+        jira.quiet = True
+        threading.Thread(
+            target=jira.serve_forever,
+            kwargs={"poll_interval": 0.05},
+            daemon=True
+        ).start()
+        self.addCleanup(jira.server_close)
+        self.addCleanup(jira.shutdown)
+        client = JiraClient(
+            jira.base_url,
+            "demo",
+            UpstreamPool(RequestMeter())
+        )
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        mirror = IssueMirror(
+            directory.name,
+            client,
+            scenario.BOARD_ID,
+            detail_fields(scenario.FIELDS)
+        )
+        return jira, client, mirror
+
+    def test_every_scenario_syncs_and_walks_its_workflow(self):
+        for name in run.scenarios():
+            with self.subTest(name):
+                scenario = run.load(name)
+                jira, client, mirror = self.serve(scenario)
+                self.assertEqual(mirror.sync_board(), len(scenario.ISSUES))
+                first = next(issue["key"] for issue in jira.board.issues if issue["status"] == scenario.MAIN_LINE[0])
+                issue = client.get_json(
+                    f"rest/api/2/issue/{first}?fields=status,issuetype&expand=transitions",
+                    "test"
+                )
+                self.assertEqual(
+                    mirror.workflows.route(
+                        workflow_of(issue),
+                        scenario.MAIN_LINE[0],
+                        scenario.DONE_STATUS,
+                        issue["transitions"]
+                    ),
+                    list(scenario.MAIN_LINE[1:])
+                )
+
+    def test_every_quick_filter_is_understood(self):
+        for name in run.scenarios():
+            scenario = run.load(name)
+            board = Board(
+                "http://jira.test",
+                scenario
+            )
+            for quick_filter in scenario.QUICK_FILTERS:
+                with self.subTest(name, filter=quick_filter["name"]):
+                    shown = board.all_data(str(quick_filter["id"]))["issuesData"]["issues"]
+                    # A query the fake Jira does not understand lets every issue through.
+                    self.assertLess(len(shown), len(scenario.ISSUES))
+
+    def test_colleagues_never_act_as_the_viewer(self):
+        for name in run.scenarios():
+            with self.subTest(name):
+                scenario = run.load(name)
+                board = Board(
+                    "http://jira.test",
+                    scenario
+                )
+                rng = random.Random(1)
+                for _ in range(60):
+                    board.simulate(rng)
+                authors = {
+                    history["author"]
+                    for issue in board.issues
+                    for history in issue["histories"]
+                    if history["created"].timestamp() > time.time() - 60
+                }
+                self.assertTrue(authors)
+                self.assertNotIn(scenario.ME, authors)
+
+
 class DemoContentTest(unittest.TestCase):
 
     def test_same_content_whatever_the_start_time(self):

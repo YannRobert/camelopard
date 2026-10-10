@@ -1,0 +1,21 @@
+{
+  "jiraHost": "http://127.0.0.1:8768",
+  "boardId": 7,
+  "fields": {
+    "storyPoints": "customfield_10002",
+    "sprints": "customfield_10004",
+    "criticality": "customfield_10200",
+    "developer": "customfield_10201",
+    "tester": "customfield_10202",
+    "environments": "customfield_10203",
+    "deliveredAt": "customfield_10204",
+    "installedAt": "customfield_10205",
+    "acceptedAt": "customfield_10206"
+  },
+  "views": [
+    { "label": "Business", "from": "Backlog" },
+    { "label": "Supplier", "from": "Sent to supplier" },
+    { "label": "QA", "from": "Delivered to staging" },
+    { "label": "Acceptance", "from": "Business acceptance" }
+  ]
+}

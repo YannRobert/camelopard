@@ -30,12 +30,16 @@ AVATAR_ID_BASE = 10100
 JIRA_DATE = "%Y-%m-%dT%H:%M:%S.000%z"
 # Sprint dates in allData.json, as the page parses them.
 BOARD_DATE = "%d/%m/%Y %H:%M"
+# As Jira Server renders a {code} block.
+CODE_BLOCK = '<div class="code panel"><div class="codeContent panelContent"><pre class="code-java">{}</pre></div></div>'
 LINK_TYPES = {
     "blocks": {"id": "10000", "name": "Blocks", "inward": "is blocked by", "outward": "blocks"},
     "relates to": {"id": "10003", "name": "Relates", "inward": "relates to", "outward": "relates to"},
 }
 KEY_IN = re.compile(r"^key in \(([A-Z0-9,-]+)\)\Z")
 PERSON_FILTER = re.compile(r"^assignee = ([a-z]+)\Z")
+LABEL_FILTER = re.compile(r"^labels = ([\w-]+)\Z")
+TYPE_FILTER = re.compile(r"^issuetype = (\w+)\Z")
 SPRINT_IN = re.compile(r"^sprint in \(([0-9,]+)\)( AND updated >= -([0-9]+)m)?\Z")
 
 
@@ -119,7 +123,7 @@ class Board:
             now
         )
         if spec.get("carried"):
-            created = self.sprint_start - timedelta(days=clock.uniform(4, 12))
+            created = self.sprint_start - timedelta(days=clock.uniform(*self.data.CARRIED_AGE_DAYS))
         else:
             created = self.sprint_start - timedelta(hours=clock.uniform(1, 40))
         created = self._working(min(created, last_at - timedelta(hours=2)))
@@ -153,13 +157,12 @@ class Board:
             "resolutiondate": None,
             "duedate": (now + timedelta(days=2)).strftime("%Y-%m-%d") if spec["priority"] == "Highest" else None,
         }
-        # Status moves along the main line, the last one at last_at, the others spread before it. Reworked:
-        # the review sent the issue back once.
-        moves = self.data.MAIN_LINE[1:status_index + 1]
+        # Status moves along the main line, the last one at last_at, the others spread before it.
+        moves = self._rework(
+            self.data.MAIN_LINE[1:status_index + 1],
+            spec.get("reworked")
+        )
         review_status = self.data.REVIEW_STATUS
-        if spec.get("reworked") and review_status in moves:
-            review = moves.index(review_status) + 1
-            moves = moves[:review] + (self.data.DEV_STATUS, review_status) + moves[review:]
         reviewer = rng.choice([login for login in self.data.DEVELOPERS if login != developer])
         times = sorted(
             self._working(
@@ -170,6 +173,8 @@ class Board:
         ) + [last_at] if moves else []
         for status, at in zip(moves, times):
             author = tester if status in self.data.TESTER_STATUSES else developer
+            if status in self.data.REPORTER_STATUSES:
+                author = issue["reporter"]
             if status == self.data.DEV_STATUS and issue["status"] == review_status:
                 author = reviewer
             elif status == self.data.DEV_STATUS:
@@ -240,6 +245,25 @@ class Board:
             issue["environments"] = ["Production"] if spec["priority"] in ("Highest", "High") else ["Staging"]
         return issue
 
+    def _rework(
+            self,
+            moves,
+            loops
+    ):
+        """The moves with the issue sent back at the checks named in loops (True: once, at the first check),
+        then walked again up to the check: a review asking for changes, a failed test."""
+        if loops is True:
+            loops = next((check for check in self.data.REWORK if check in moves), ())
+            loops = (loops,) if loops else ()
+        walked = []
+        line = self.data.MAIN_LINE
+        for status in moves:
+            walked.append(status)
+            for _ in range((loops or ()).count(status)):
+                back = self.data.REWORK[status]
+                walked += back + line[line.index(back[-1]) + 1:line.index(status) + 1]
+        return tuple(walked)
+
     def _last_move_time(
             self,
             freshness,
@@ -291,7 +315,7 @@ class Board:
                 (rng.choice(list(self.data.PEOPLE)), text)
                 for text in rng.sample(
                     self.data.NOT_STARTED_COMMENTS if issue["status"] == self.data.MAIN_LINE[0] else self.data.GENERIC_COMMENTS,
-                    rng.choice((0, 0, 1, 1, 2))
+                    rng.choice(self.data.COMMENT_COUNTS)
                 )
             ]
         span = now - created
@@ -473,13 +497,14 @@ class Board:
         assignment. Returns what happened, for the log; None when nothing applied."""
         with self._lock:
             others = [login for login in self.data.PEOPLE if login != self.data.ME]
+            developers = [login for login in self.data.DEVELOPERS if login != self.data.ME]
             open_issues = [issue for issue in self.issues if issue["status"] != self.data.DONE_STATUS]
             action = rng.choices(("move", "comment", "assign"), weights=(5, 4, 2))[0]
             if action == "assign":
                 unassigned = [issue for issue in open_issues if issue["assignee"] is None]
                 if unassigned:
                     issue = rng.choice(unassigned)
-                    who = rng.choice(self.data.TESTERS if issue["status"] in self.data.QA_STATUSES else self.data.DEVELOPERS[1:])
+                    who = rng.choice(self.data.TESTERS if issue["status"] in self.data.QA_STATUSES else developers)
                     self.assign(issue["key"], who, who)
                     return f"{self.data.PEOPLE[who]} took {issue['key']}"
                 action = "move"
@@ -498,7 +523,7 @@ class Board:
             # drift to Done.
             transitions = self.data.WORKFLOW[issue["status"]]
             transition_id, name, target = transitions[1 if len(transitions) > 1 and rng.random() < 0.25 else 0]
-            who = issue["assignee"] or rng.choice(self.data.TESTERS if target in self.data.TESTER_STATUSES else self.data.DEVELOPERS[1:])
+            who = issue["assignee"] or rng.choice(self.data.TESTERS if target in self.data.TESTER_STATUSES else developers)
             self.transition(issue["key"], transition_id, who)
             if issue["assignee"] is None:
                 self.assign(issue["key"], who, who)
@@ -829,14 +854,19 @@ class Board:
             quick_filter
     ):
         query = next((f["query"] for f in self.data.QUICK_FILTERS if str(f["id"]) == str(quick_filter)), None)
-        person = PERSON_FILTER.match(query or "")
+        query = query or ""
+        person = PERSON_FILTER.match(query)
+        label = LABEL_FILTER.match(query)
+        issue_type = TYPE_FILTER.match(query)
         if person:
             return issue["assignee"] == person.group(1)
+        if label:
+            return label.group(1) in issue["labels"]
+        if issue_type:
+            return self.data.TYPES[issue["type"]][0] == issue_type.group(1)
         return {
             "assignee = currentUser()": issue["assignee"] == self.data.ME,
             "assignee is EMPTY": issue["assignee"] is None,
-            "issuetype = Bug": self.data.TYPES[issue["type"]][0] == "Bug",
-            "labels = blocked": "blocked" in issue["labels"],
         }.get(query, True)
 
     def _link(
@@ -968,19 +998,31 @@ def render_wiki(
         text,
         attachments
 ):
-    """Jira's wiki markup to HTML, for the subset the scenarios use: headings, lists, embedded images,
-    monospace, bold and italics."""
-    out, list_tag = [], None
+    """Jira's wiki markup to HTML, for the subset the scenarios use: headings, lists, tables, code blocks,
+    embedded images, monospace, bold and italics."""
+    out, list_tag, code = [], None, None
     for line in text.split("\n"):
+        if code is not None:
+            if line.strip() == "{code}":
+                out.append(CODE_BLOCK.format(html.escape("\n".join(code), quote=False)))
+                code = None
+            else:
+                code.append(line)
+            continue
         tag = "ul" if line.startswith("* ") else "ol" if line.startswith("# ") else None
+        tag = "table" if line.startswith("|") else tag
         if tag != list_tag:
             if list_tag:
                 out.append(f"</{list_tag}>")
             if tag:
                 out.append(f"<{tag}>")
             list_tag = tag
-        if tag:
+        if tag == "table":
+            out.append(table_row(line))
+        elif tag:
             out.append(f"<li>{inline(line[2:])}</li>")
+        elif line.startswith("{code"):
+            code = []
         elif line.startswith("h3. "):
             out.append(f"<h3>{inline(line[4:])}</h3>")
         elif line.startswith("!") and line.endswith("!") and line[1:-1] in attachments:
@@ -990,6 +1032,13 @@ def render_wiki(
     if list_tag:
         out.append(f"</{list_tag}>")
     return "\n".join(out)
+
+
+def table_row(line):
+    """A table row: ||heading||heading|| or |cell|cell|."""
+    cell = "th" if line.startswith("||") else "td"
+    cells = line.strip("|").split("||" if cell == "th" else "|")
+    return "<tr>" + "".join(f"<{cell}>{inline(text.strip())}</{cell}>" for text in cells) + "</tr>"
 
 
 def inline(text):

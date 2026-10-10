@@ -5,7 +5,8 @@ not stored: the fake Jira's board places every event relative to the moment the 
 looks alive (moves yesterday for the stand-up, changes in the last hour, comments of the day).
 """
 
-from .drawings import DRAWINGS  # noqa: F401  (read by the fake Jira)
+from ..common import BOT, FIELDS, PRIORITIES, PRIORITY_IDS, TYPES, TYPE_IDS  # noqa: F401  (read by the fake Jira)
+from .drawings import DRAWINGS  # noqa: F401
 
 PROJECT_KEY = "FOL"
 PROJECT_NAME = "Folio"
@@ -28,8 +29,6 @@ PEOPLE = {
 DEVELOPERS = ("alice", "bruno", "chloe", "dmitri", "farid")
 TESTERS = ("emma", "grace")
 REPORTERS = ("alice", "bruno", "grace")
-# History entries made by this account show as automation in the detail panel.
-BOT = ("automation", "Jira Automation")
 
 # Status id: (name, status category key). The ids look like Jira's: the board's own statuses are low, the
 # ones a workflow adds are 10000 and above.
@@ -69,37 +68,13 @@ REVIEW_STATUS = "10100"
 # Handed over to QA: to a tester, or to nobody when QA picks issues from the column.
 HANDOVER_STATUS = "10101"
 QA_STATUSES = ("10101", "10102")
+# Moves made by the issue's tester, and by its reporter; the developer makes the others.
 TESTER_STATUSES = ("10102", "10001")
+REPORTER_STATUSES = ()
+# Check: the statuses an issue goes back through when the check sends it back (reworked issues).
+REWORK = {"10100": ("3",)}
 # Status reached: date field (role) it sets.
 DATE_STATUSES = {"10101": "deliveredAt", "10102": "installedAt", "10001": "acceptedAt"}
-
-# Type id: (name, icon file served under images/icons/demo/).
-TYPES = {
-    "10001": ("Story", "story.svg"),
-    "1": ("Bug", "bug.svg"),
-    "3": ("Task", "task.svg"),
-}
-TYPE_IDS = {name: type_id for type_id, (name, _) in TYPES.items()}
-PRIORITIES = {
-    "1": ("Highest", "highest.svg"),
-    "2": ("High", "high.svg"),
-    "3": ("Medium", "medium.svg"),
-    "4": ("Low", "low.svg"),
-}
-PRIORITY_IDS = {name: priority_id for priority_id, (name, _) in PRIORITIES.items()}
-
-# Custom fields, as the demo configuration maps them to roles.
-FIELDS = {
-    "storyPoints": "customfield_10002",
-    "sprints": "customfield_10004",
-    "criticality": "customfield_10200",
-    "developer": "customfield_10201",
-    "tester": "customfield_10202",
-    "environments": "customfield_10203",
-    "deliveredAt": "customfield_10204",
-    "installedAt": "customfield_10205",
-    "acceptedAt": "customfield_10206",
-}
 
 BOARD_ID = 1
 SPRINT_ID = 23
@@ -110,6 +85,8 @@ SPRINT_OWNER = "grace"
 PREVIOUS_SPRINT_ID = 22
 PREVIOUS_SPRINT_NAME = "Folio Sprint 22"
 SPRINT_LENGTH_DAYS = 14
+# Issues carried over from the previous sprint were created that many days before this one started.
+CARRIED_AGE_DAYS = (4, 12)
 FIX_VERSION = "2.4.0"
 # Bugs only: priority: criticality.
 CRITICALITY = {"Highest": "Critical", "High": "Major", "Medium": "Minor", "Low": "Minor"}
@@ -300,6 +277,8 @@ GENERIC_COMMENTS = (
     "Product confirmed: no change needed on the emails.",
     "Rebased on main, the build is green again.",
 )
+# Number of comments drawn from the lists below, one of these at random.
+COMMENT_COUNTS = (0, 0, 1, 1, 2)
 # Comments on an issue nobody has started: the ones above talk about work already done.
 NOT_STARTED_COMMENTS = (
     "Do we have the designs for this one?",
