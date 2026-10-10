@@ -244,6 +244,7 @@ try {
   }
   .filters button.qf:hover { background: var(--chip); }
   .filters button.qf[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+  .filters button.qf[aria-busy="true"] { opacity: 0.6; cursor: progress; }
   /* The logged-in user, among the quick filters. */
   .filters button.qf.me { position: relative; isolation: isolate; color: var(--accent); font-weight: 700; }
   .filters button.qf.me[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
@@ -868,6 +869,8 @@ const state = {
   defaultSprint: null,
   sprintId: Number(params.get("sprint")) || null,
   quick: new Set((params.get("qf") || "").split(",").filter(Boolean).map(Number)),
+  // Quick filters whose issues are being asked to Jira.
+  filtersLoading: new Set(),
   labelOrder: readLabelOrder(),
   labels: new Set((params.get("lb") || "").split(",").filter(Boolean).map(label => label.toLowerCase())),
   q: params.get("q") || "",
@@ -1010,20 +1013,57 @@ function clientPredicate(filter) {
 }
 
 async function fetchBoard(sprintId) {
-  const base = `${ALL_DATA}&activeSprints=${sprintId}`;
-  const serverFilters = state.meta.quickFilters.filter(f => !clientPredicate(f));
-  const [raw, labels, ...filtered] = await Promise.all([
-    jira(base),
+  const [raw, labels, filterKeys] = await Promise.all([
+    jira(`${ALL_DATA}&activeSprints=${sprintId}`),
     fetchLabels(sprintId),
-    ...serverFilters.map(f => jira(`${base}&activeQuickFilters=${f.id}`)),
+    fetchFilterKeys(
+      sprintId,
+      state.meta.quickFilters.filter(f => state.quick.has(f.id) && !clientPredicate(f))
+    ),
   ]);
   const board = toBoard(
     raw,
     sprintId
   );
-  serverFilters.forEach((f, i) => { board.filterKeys[f.id] = filtered[i].issuesData.issues.map(issue => issue.key); });
+  board.filterKeys = filterKeys;
   for (const issue of board.issues) issue.labels = labels.get(issue.key) ?? [];
   return board;
+}
+
+// The issues of the quick filters Jira evaluates, {filter id: keys}. Each costs a whole board: only the
+// filters in use are asked for, at refresh time, and the others when they are switched on.
+async function fetchFilterKeys(
+  sprintId,
+  filters
+) {
+  const answers = await Promise.all(filters.map(f => jira(`${ALL_DATA}&activeSprints=${sprintId}&activeQuickFilters=${f.id}`)));
+  return Object.fromEntries(filters.map((f, i) => [f.id, answers[i].issuesData.issues.map(issue => issue.key)]));
+}
+
+// A quick filter switched on without its issues (just clicked, or read from the URL on a board refreshed
+// without it): asks Jira for them. Meanwhile the filter lets every issue through.
+function loadMissingFilterKeys() {
+  const board = currentBoard();
+  if (!board || !state.meta) return;
+  const missing = state.meta.quickFilters.filter(f =>
+    state.quick.has(f.id) && !clientPredicate(f) && !board.filterKeys[f.id] && !state.filtersLoading.has(f.id));
+  if (!missing.length) return;
+  for (const f of missing) state.filtersLoading.add(f.id);
+  fetchFilterKeys(
+    board.sprintId,
+    missing
+  ).then(keys => {
+    Object.assign(board.filterKeys, keys);
+    saveSnapshot();
+  }).catch(error => {
+    for (const f of missing) state.quick.delete(f.id);
+    writeUrl();
+    flashError(`Quick filter unavailable: ${error.message}`);
+  }).finally(() => {
+    for (const f of missing) state.filtersLoading.delete(f.id);
+    renderFilters();
+    renderBoard();
+  });
 }
 
 // allData.json does not carry labels: the agile API gives them for the whole sprint, in pages of 50.
@@ -1253,6 +1293,7 @@ function scheduleAutoRefresh() {
 // ---------- Rendering ----------
 
 function render() {
+  loadMissingFilterKeys();
   renderActivity();
   renderHeader();
   renderFilters();
@@ -1321,7 +1362,7 @@ function renderFilters() {
   $("filters").innerHTML =
     (filters.length ? `<span class="label">QUICK FILTERS:</span>` : "") +
     filters.map((f, index) => (index > 0 && isPersonFilter(filters[index - 1].id) && !isPersonFilter(f.id) ? `<span class="qf-sep" aria-hidden="true"></span>` : "") +
-      `<button type="button" class="qf${isMyFilter(f) ? " me" : ""}" data-qf="${f.id}" aria-pressed="${state.quick.has(f.id)}" ` +
+      `<button type="button" class="qf${isMyFilter(f) ? " me" : ""}" data-qf="${f.id}" aria-pressed="${state.quick.has(f.id)}" aria-busy="${state.filtersLoading.has(f.id)}" ` +
       `title="${isMyFilter(f) ? "You · " : ""}${escapeHtml(f.description || f.query)}">${isMyFilter(f) ? myName(f.name) : escapeHtml(f.name)}</button>`).join("") +
     labelsHtml(board) +
     `<span class="search"><input id="q" type="search" placeholder="Search (key, summary, type…)  /" title="Key, summary, assignee, epic, labels, type, status, priority — every word must match. Keywords: type:bug status:&quot;in progress&quot; label:back priority:high epic:login @name @me @none; a leading - excludes (-label:back)" value="${escapeHtml(state.q)}" aria-label="Search">` +
@@ -2989,6 +3030,7 @@ document.addEventListener("click", e => {
       state.quick.add(id);
     }
     writeUrl();
+    loadMissingFilterKeys();
     renderFilters();
     renderBoard();
     return;
