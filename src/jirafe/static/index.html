@@ -2016,6 +2016,13 @@ async function fetchIssue(
   return body;
 }
 
+// When Jira last confirmed the copy (epoch milliseconds): its own sync, or a later pass of the background
+// sync that found it unchanged.
+const checkedAt = entry => Math.max(
+  Date.parse(entry.syncedAt),
+  entry.checkedAt ? Date.parse(entry.checkedAt) : 0
+);
+
 function remember(entry) {
   if (!entry) return;
   state.detail.delete(entry.key);
@@ -2059,7 +2066,7 @@ async function openDetail(key) {
     if (state.openToken !== token) return;
   }
   const cached = state.detail.get(key);
-  if (cached && Date.now() - Date.parse(cached.syncedAt) < DETAIL_FRESH_MS) {
+  if (cached && Date.now() - checkedAt(cached) < DETAIL_FRESH_MS) {
     renderDetail(key, {});
     return;
   }
@@ -2790,7 +2797,7 @@ function renderDetail(
   $("panel-sync").innerHTML = syncing
     ? `<span class="muted">Syncing with Jira…</span>` + (entry ? ` <span class="muted">(copy from ${escapeHtml(formatDate(entry.syncedAt))})</span>` : "")
     : entry
-      ? `<button type="button" class="resync ${syncError ? "sync-failed" : "muted"}" title="${escapeHtml(syncError ? `${syncError} — click to retry` : "Click to resync from Jira")}">${syncError ? "Sync failed · local copy synced" : "Synced"} ${relative(Date.parse(entry.syncedAt))}</button>`
+      ? `<button type="button" class="resync ${syncError ? "sync-failed" : "muted"}" title="${escapeHtml(syncError ? `${syncError} — click to retry` : "Click to resync from Jira")}">${syncError ? "Sync failed · local copy synced" : "Synced"} ${relative(checkedAt(entry))}</button>`
       : syncError
         ? `<button type="button" class="resync sync-failed" title="${escapeHtml(`${syncError} — click to retry`)}">Sync failed · click to retry</button>`
         : "";

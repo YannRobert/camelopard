@@ -9,6 +9,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 from .constants import (
     ASSIGNEE_PATH,
+    CHECKED_FRESH_S,
     CONFIG_PLACEHOLDER,
     DEFAULT_RECENT_MINUTES,
     EPOCH_MS,
@@ -32,6 +33,7 @@ from .constants import (
     USER_LOGIN,
 )
 from .jira import JiraClient, JiraError
+from .mirror import iso
 from .workflow import workflow_of
 
 
@@ -368,11 +370,17 @@ def make_handler(
                 return
             cached = mirror.read(key)
             query = parse_qs(target.query)
+            checked = mirror.checked_at(key)
+            if cached and checked:
+                cached = {**cached, "checkedAt": iso(checked)}
             # A copy made before history was mirrored is never fresh: it has nothing to show it with.
             fresh = (
                 cached
                 and "changelog" in cached["data"]
-                and time.time() - datetime.fromisoformat(cached["syncedAt"]).timestamp() < ISSUE_FRESH_S
+                and (
+                    time.time() - datetime.fromisoformat(cached["syncedAt"]).timestamp() < ISSUE_FRESH_S
+                    or (checked is not None and time.time() - checked < CHECKED_FRESH_S)
+                )
             )
             if query.get("sync") != ["1"] or (fresh and query.get("force") != ["1"]):
                 if cached:

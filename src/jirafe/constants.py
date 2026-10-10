@@ -99,6 +99,10 @@ RELAY_DECODE_ROUNDS = 3
 # Below this age, the local copy of an issue (synced when the detail was opened or by the background sync)
 # is returned as is: reopening an issue or switching tabs costs no request to Jira.
 ISSUE_FRESH_S = 30
+# An issue of the sprints is also fresh while the last pass of the background sync is this recent: that pass
+# asked Jira which issues had changed, and this one was not among them. A little above WATCH_INTERVAL_S, for
+# the time a pass takes, so that the copy of an issue nobody touches stays fresh while a page is watching.
+CHECKED_FRESH_S = 45
 RANK_PATH = "rest/agile/1.0/issue/rank"
 ASSIGNEE_PATH = "rest/api/2/issue/{key}/assignee"
 TRANSITIONS_PATH = "rest/api/2/issue/{key}/transitions"

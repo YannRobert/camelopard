@@ -51,6 +51,11 @@ class IssueMirror:
         # its board refreshes read no file.
         self._updated = None
         self._labels = None
+        # Start of the last pass (epoch seconds), and the issues of the sprints it covered: the ones the
+        # full pass found, then those the incremental passes rewrote. An issue removed from the sprints
+        # only leaves at the next full pass: its detail is then fetched as if it had never been checked.
+        self._checked_at = None
+        self._in_sprints = frozenset()
         self._updated_lock = threading.Lock()
 
     def read(self, key):
@@ -99,23 +104,31 @@ class IssueMirror:
             else:
                 minutes = int((now - state["syncAt"]) / 60) + SYNC_OVERLAP_MIN
                 issues = self._search_changed(f"{jql} AND updated >= -{minutes}m")
-            written = 0
+            written = set()
             for issue in issues:
                 previous = self.read(issue["key"])
                 if not previous or previous["data"]["fields"].get("updated") != issue["fields"].get("updated"):
                     self.changed_at = time.time()
                 self._write(issue)
-                written += 1
+                written.add(issue["key"])
+            # Replaced rather than updated: the server's threads read it without the lock.
+            self._in_sprints = frozenset(written) if full else self._in_sprints | written
+            self._checked_at = now
             state["syncAt"] = now
             if full:
                 state["fullSyncAt"] = now
                 state["fields"] = self._signature
-            state["lastCount"] = written
+            state["lastCount"] = len(written)
             write_json(
                 self._state_file,
                 state
             )
-            return written
+            return len(written)
+
+    def checked_at(self, key):
+        """When Jira last confirmed the copy of the issue (epoch seconds): the start of the last pass, if the
+        issue is one of the sprints it covered; None otherwise."""
+        return self._checked_at if key in self._in_sprints else None
 
     def status(self):
         state = self._read_state()

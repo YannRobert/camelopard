@@ -437,6 +437,21 @@ class HandlerTest(unittest.TestCase):
         self.assertIn("windows", json.loads(body))
         self.assertEqual(self.upstream.requests, [])
 
+    def test_issue_checked_by_the_last_pass_without_calling_jira(self):
+        jira = self.mirror._jira
+        jira.issues[0]["changelog"] = {"histories": []}
+        # Copied ten minutes ago, then found unchanged by the pass that just ran.
+        with mock.patch("jirafe.mirror.time.time", return_value=time.time() - 600):
+            self.mirror.sync_board()
+        self.mirror.sync_board()
+        jira.paths.clear()
+        status, body = self.call("GET", "/issue/ABC-1?sync=1")
+        self.assertEqual(status, 200)
+        self.assertIn("checkedAt", json.loads(body))
+        self.assertEqual(jira.paths, [])
+        status, _ = self.call("GET", "/issue/ABC-1?sync=1&force=1")
+        self.assertEqual(jira.paths, ["rest/api/2/issue/ABC-1?fields=" + BASE_DETAIL_FIELDS + "&expand=renderedFields,changelog,transitions"])
+
     def test_labels_from_the_local_copy_without_calling_jira(self):
         self.mirror.sync_board()
         status, body = self.call("GET", "/labels")

@@ -237,6 +237,8 @@ browser ──► http://localhost:8766 ──► Jira
   address Jira can reach), so it is asked: every 5 minutes, and every 30 seconds while a page is visible,
   with a light search (modification dates only) followed by the full fetch of the issues that changed.
   A change made elsewhere then reaches the open detail and the board within about 45 seconds.
+  Opening an issue resyncs it from Jira only when neither its copy nor the last pass is recent: a pass
+  that did not find it among the changed issues vouches for its copy.
 - **Since your last visit** (button in the header, shown when there is news): what others changed since
   the page was last seen — column moves, assignments, comments — from the local copy's history. A visit
   ends after an hour unseen: a reload keeps the list, the next morning starts a new one.
