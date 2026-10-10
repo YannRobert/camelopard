@@ -1481,8 +1481,9 @@ function renderFilters() {
 }
 
 // The filters keep to one line: a board with forty quick filters must not push the board down by five rows.
-// Those past the end of the line are hidden behind a "+N" button, which unfolds them all (remembered); a
-// hidden filter that is switched on shows on that button, so it is never on without the user seeing it.
+// A group (people, the board's other quick filters, labels) that does not fit goes whole, with those after it,
+// behind a "+N" button: a group is never split between the line and the popover. A filter switched on in
+// there shows on that button, so it is never on without the user seeing it.
 function fitFilters() {
   const rail = $("filters");
   const more = $("more-filters");
@@ -1491,6 +1492,7 @@ function fitFilters() {
   // Those moved to the popover by the previous fit come back in their place, to be measured again.
   for (const el of [...popover.children]) rail.insertBefore(el, more);
   const items = [...rail.children].filter(el => el !== more);
+  items.forEach(el => { el.hidden = false; });
   more.hidden = true;
   if (rail.scrollWidth <= rail.clientWidth) {
     showMoreFilters(false);
@@ -1499,16 +1501,19 @@ function fitFilters() {
   more.hidden = false;
   more.textContent = "+ 99 more";
   const limit = rail.getBoundingClientRect().left + rail.clientWidth - more.offsetWidth - FILTERS_GAP_PX;
-  const cut = items.findIndex(el => el.getBoundingClientRect().right > limit);
-  const hidden = cut < 0 ? [] : items.slice(cut);
-  // A separator or a group title left last on the line would announce nothing.
-  for (let last = cut - 1; last >= 0 && items[last].matches(".qf-sep, .label"); last--) hidden.unshift(items[last]);
+  const over = items.findIndex(el => el.getBoundingClientRect().right > limit);
+  // Back to the start of the group that overflows: a separator, or the start of the line.
+  let cut = Math.max(0, over);
+  while (cut > 0 && !items[cut].matches(".qf-sep")) cut--;
+  const hidden = over < 0 ? [] : items.slice(cut);
+  // The separator opening the group has nothing before it in the popover: it stays, hidden, on the line.
+  if (hidden[0]?.matches(".qf-sep")) hidden.shift().hidden = true;
   const count = hidden.reduce((sum, el) => sum + (el.matches("button") ? 1 : el.matches("select") ? el.options.length - 1 : 0), 0);
   const on = hidden.filter(el => el.getAttribute("aria-pressed") === "true" || el.matches(".people.active")).length;
   // The rest waits in a popover over the cards: opening it moves nothing on the page.
   popover.append(...hidden);
   more.classList.toggle("active", on > 0);
-  more.textContent = `+ ${count} more` + (on ? ` · ${on} on` : "");
+  more.textContent = (cut > 0 ? `+ ${count} more` : `${count} filters`) + (on ? ` · ${on} on` : "");
   more.title = on ? `${on} of the other filters ${on > 1 ? "are" : "is"} on` : "Show the other filters";
   showMoreFilters(state.filtersOpen);
 }
