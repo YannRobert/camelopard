@@ -1,14 +1,17 @@
 """The fictional team, workflow and issues of the demo board.
 
 Everything here is invented: Folio is an imaginary online bookshop, and its team does not exist. Dates are
-not stored: board.py places every event relative to the moment the demo starts, so that the board always
+not stored: the fake Jira's board places every event relative to the moment the demo starts, so that the board always
 looks alive (moves yesterday for the stand-up, changes in the last hour, comments of the day).
 """
+
+from .drawings import DRAWINGS  # noqa: F401  (read by the fake Jira)
 
 PROJECT_KEY = "FOL"
 PROJECT_NAME = "Folio"
 BOARD_NAME = "Folio team board"
 FIRST_ISSUE_NUMBER = 101
+EMAIL_DOMAIN = "folio.example"
 
 # The person looking at the board (GET rest/api/2/myself).
 ME = "alice"
@@ -24,6 +27,7 @@ PEOPLE = {
 }
 DEVELOPERS = ("alice", "bruno", "chloe", "dmitri", "farid")
 TESTERS = ("emma", "grace")
+REPORTERS = ("alice", "bruno", "grace")
 # History entries made by this account show as automation in the detail panel.
 BOT = ("automation", "Jira Automation")
 
@@ -59,6 +63,15 @@ WORKFLOW = {
 # The usual way forward, used to write the history of an issue up to its current status.
 MAIN_LINE = ("1", "3", "10100", "10101", "10102", "10001")
 DONE_STATUS = "10001"
+# What the statuses mean to the people working the issue: who makes each move, and who gets it next.
+DEV_STATUS = "3"
+REVIEW_STATUS = "10100"
+# Handed over to QA: to a tester, or to nobody when QA picks issues from the column.
+HANDOVER_STATUS = "10101"
+QA_STATUSES = ("10101", "10102")
+TESTER_STATUSES = ("10102", "10001")
+# Status reached: date field (role) it sets.
+DATE_STATUSES = {"10101": "deliveredAt", "10102": "installedAt", "10001": "acceptedAt"}
 
 # Type id: (name, icon file served under images/icons/demo/).
 TYPES = {
@@ -98,6 +111,10 @@ PREVIOUS_SPRINT_ID = 22
 PREVIOUS_SPRINT_NAME = "Folio Sprint 22"
 SPRINT_LENGTH_DAYS = 14
 FIX_VERSION = "2.4.0"
+# Bugs only: priority: criticality.
+CRITICALITY = {"Highest": "Critical", "High": "Major", "Medium": "Minor", "Low": "Minor"}
+# Label: component.
+COMPONENTS = {"frontend": "Web", "backend": "Backend", "mobile": "Mobile", "api": "API"}
 
 # Key suffix: (name, ghx-label colour of Jira's palette). Epics are not on the board, only their label.
 EPICS = (
@@ -109,7 +126,7 @@ EPICS = (
 )
 
 QUICK_FILTERS = (
-    # The page evaluates assignee filters itself; the others are asked to Jira (here, filter() in board.py).
+    # The page evaluates assignee filters itself; the others are asked to Jira (here, by the fake Jira).
     # Teams usually add one filter per person, named after their first name.
     *(
         {"id": 11 + index, "name": name.split()[0], "query": f"assignee = {login}", "description": ""}
@@ -196,8 +213,8 @@ ISSUES = (
          assignee="alice", epic="Accessibility", points=2, labels=["frontend", "a11y"], freshness="older"),
 )
 
-# Descriptions in Jira's wiki markup (a small subset: board.py renders it). Issues without one get a
-# description built from their type.
+# Descriptions in Jira's wiki markup (a small subset: the fake Jira renders it). Issues without one get a
+# description built from their type (default_description).
 DESCRIPTIONS = {
     "saved-card": (
         "h3. Why\n"
@@ -299,7 +316,7 @@ LIVE_COMMENTS = (
 )
 
 ATTACHMENTS = {
-    # Detailed key: [(file name, author)]
+    # Detailed key: [(file name, author)], drawn in DRAWINGS.
     "saved-card": (("checkout-mockup.svg", "chloe"),),
     "apple-pay": (("apple-pay-flow.svg", "emma"),),
 }
@@ -309,3 +326,22 @@ LINKS = (
     ("declined-message", "blocks", "saved-card"),
     ("three-steps", "relates to", "autocomplete"),
 )
+
+
+def default_description(spec):
+    if spec["type"] == "Bug":
+        return (
+            "h3. Steps\n"
+            "# Open the page on staging\n"
+            f"# {spec['summary']}\n"
+            "h3. Expected\n"
+            "The same behaviour as on the previous release."
+        )
+    if spec["type"] == "Task":
+        return f"{spec['summary']}.\nNo visible change for customers: checked by the usual monitoring."
+    return (
+        "As a customer, I want this so that buying a book is quicker.\n"
+        "h3. Acceptance criteria\n"
+        "* Works on the latest two versions of every major browser\n"
+        "* Covered by the end-to-end checkout tests"
+    )

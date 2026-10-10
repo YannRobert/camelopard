@@ -42,7 +42,7 @@ This opens Jirafe on a fictional board (an imaginary online bookshop and its tea
 that runs on your machine: no Jira, no token, no configuration. Its history is placed relative to the
 moment you start it, and colleagues keep moving issues and commenting while it runs, so that the live
 refresh, the stand-up and the notifications have something to show. Moves, ranking and assignments work;
-nothing is kept once it stops. `python3 demo/run.py --help` lists the options.
+nothing is kept once it stops. `python3 demo/run.py --help` lists the options and the other boards.
 
 ## Requirements
 
@@ -279,7 +279,7 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 jirafe.cmd, jirafe.sh     Windows and Linux / macOS launchers
 start.sh, stop.sh         background server (Linux / macOS)
 jirafe.example.json       configuration template
-demo/                     fake Jira and fictional board, to try Jirafe without Jira
+demo/                     fake Jira and fictional boards (scenarios/), to try Jirafe without Jira
 src/jirafe/
   app.py                  entry point: options, configuration, startup
   handler.py              HTTP routes and security checks

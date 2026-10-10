@@ -1,4 +1,4 @@
-"""A fake Jira Server, answering the requests Jirafe makes with the fictional board of board.py.
+"""A fake Jira Server, answering the requests Jirafe makes with the fictional board of a scenario.
 
 Only what Jirafe reads and writes is served: anything else gets a 404, which shows at once when Jirafe starts
 using a new endpoint. Any bearer token is accepted.
@@ -11,8 +11,8 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlsplit
 
-import icons
-from board import Board, JiraRefusal
+from . import icons
+from .board import Board, JiraRefusal
 
 ISSUE_PATH = re.compile(r"^/rest/api/2/issue/([A-Z][A-Z0-9]+-[0-9]+)\Z")
 ASSIGNEE_PATH = re.compile(r"^/rest/api/2/issue/([A-Z][A-Z0-9]+-[0-9]+)/assignee\Z")
@@ -31,13 +31,20 @@ ACTIVITY_JITTER = 0.4
 class FakeJiraServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, port):
+    def __init__(
+            self,
+            port,
+            scenario
+    ):
         super().__init__(
             ("127.0.0.1", port),
             FakeJiraHandler
         )
         self.base_url = f"http://127.0.0.1:{self.server_address[1]}"
-        self.board = Board(self.base_url)
+        self.board = Board(
+            self.base_url,
+            scenario
+        )
         self.quiet = False
 
 
@@ -244,11 +251,15 @@ def simulate_colleagues(
 
 def start(
         port,
+        scenario,
         activity_s,
         quiet
 ):
     """Starts the fake Jira in background threads; returns the server (its base_url, its board)."""
-    server = FakeJiraServer(port)
+    server = FakeJiraServer(
+        port,
+        scenario
+    )
     server.quiet = quiet
     threading.Thread(
         target=server.serve_forever,

@@ -1,6 +1,6 @@
 """State of the demo Jira: the sprint's issues, their history, and the changes made to them.
 
-Built once at startup from dataset.py, every date placed relative to that moment, then changed by the page's
+Built once at startup from a scenario's dataset, every date placed relative to that moment, then changed by the page's
 writes (rank, assignee, transitions) and by the simulated colleagues. Answers in the shape of Jira Server's
 JSON, limited to what Jirafe reads.
 """
@@ -10,8 +10,7 @@ import re
 import threading
 from datetime import datetime, timedelta
 
-import dataset as data
-import icons
+from . import icons
 
 # Same seed at every start: the board looks the same from one screenshot session to the next.
 SEED = 2026
@@ -35,8 +34,6 @@ LINK_TYPES = {
     "blocks": {"id": "10000", "name": "Blocks", "inward": "is blocked by", "outward": "blocks"},
     "relates to": {"id": "10003", "name": "Relates", "inward": "relates to", "outward": "relates to"},
 }
-CRITICALITY = {"Highest": "Critical", "High": "Major", "Medium": "Minor", "Low": "Minor"}
-COMPONENTS = {"frontend": "Web", "backend": "Backend", "mobile": "Mobile", "api": "API"}
 KEY_IN = re.compile(r"^key in \(([A-Z0-9,-]+)\)\Z")
 PERSON_FILTER = re.compile(r"^assignee = ([a-z]+)\Z")
 SPRINT_IN = re.compile(r"^sprint in \(([0-9,]+)\)( AND updated >= -([0-9]+)m)?\Z")
@@ -59,9 +56,12 @@ class Board:
     def __init__(
             self,
             base_url,
+            scenario,
             now=None
     ):
         self.base = base_url
+        # The scenario's dataset module: the board only knows the names every scenario defines.
+        self.data = scenario
         self._lock = threading.RLock()
         # Draws of times, re-seeded for every issue (see _build_issue).
         self._clock = random.Random(SEED)
@@ -78,15 +78,15 @@ class Board:
             second=0,
             microsecond=0
         )
-        self.sprint_end = self.sprint_start + timedelta(days=data.SPRINT_LENGTH_DAYS)
+        self.sprint_end = self.sprint_start + timedelta(days=self.data.SPRINT_LENGTH_DAYS)
         self.epics = {
             name: {
                 "id": FIRST_EPIC_ID + index,
-                "key": f"{data.PROJECT_KEY}-{FIRST_EPIC_NUMBER + index}",
+                "key": f"{self.data.PROJECT_KEY}-{FIRST_EPIC_NUMBER + index}",
                 "name": name,
                 "color": color,
             }
-            for index, (name, color) in enumerate(data.EPICS)
+            for index, (name, color) in enumerate(self.data.EPICS)
         }
         self.issues = [
             self._build_issue(
@@ -94,7 +94,7 @@ class Board:
                 spec,
                 now
             )
-            for index, spec in enumerate(data.ISSUES)
+            for index, spec in enumerate(self.data.ISSUES)
         ]
         self._link_issues()
 
@@ -113,7 +113,7 @@ class Board:
         self._clock = random.Random(f"{SEED}/{index}/time")
         clock = self._clock
         detailed = spec.get("detailed")
-        status_index = data.MAIN_LINE.index(spec["status"])
+        status_index = self.data.MAIN_LINE.index(spec["status"])
         last_at = self._last_move_time(
             spec["freshness"],
             now
@@ -123,25 +123,25 @@ class Board:
         else:
             created = self.sprint_start - timedelta(hours=clock.uniform(1, 40))
         created = self._working(min(created, last_at - timedelta(hours=2)))
-        developer = spec["assignee"] if spec["assignee"] in data.DEVELOPERS else rng.choice(data.DEVELOPERS)
-        tester = spec["assignee"] if spec["assignee"] in data.TESTERS else rng.choice(data.TESTERS)
+        developer = spec["assignee"] if spec["assignee"] in self.data.DEVELOPERS else rng.choice(self.data.DEVELOPERS)
+        tester = spec["assignee"] if spec["assignee"] in self.data.TESTERS else rng.choice(self.data.TESTERS)
         issue = {
             "id": str(FIRST_ISSUE_ID + index),
-            "key": f"{data.PROJECT_KEY}-{data.FIRST_ISSUE_NUMBER + index}",
+            "key": f"{self.data.PROJECT_KEY}-{self.data.FIRST_ISSUE_NUMBER + index}",
             "detailed": detailed,
             "summary": spec["summary"],
-            "type": data.TYPE_IDS[spec["type"]],
-            "priority": data.PRIORITY_IDS[spec["priority"]],
-            "status": "1",
+            "type": self.data.TYPE_IDS[spec["type"]],
+            "priority": self.data.PRIORITY_IDS[spec["priority"]],
+            "status": self.data.MAIN_LINE[0],
             "assignee": None,
-            "reporter": rng.choice(("alice", "bruno", "grace")),
+            "reporter": rng.choice(self.data.REPORTERS),
             "epic": self.epics[spec["epic"]] if spec["epic"] else None,
             "points": spec["points"],
             "labels": list(spec["labels"]),
-            "sprints": [data.PREVIOUS_SPRINT_ID, data.SPRINT_ID] if spec.get("carried") else [data.SPRINT_ID],
+            "sprints": [self.data.PREVIOUS_SPRINT_ID, self.data.SPRINT_ID] if spec.get("carried") else [self.data.SPRINT_ID],
             "created": created,
             "updated": created,
-            "description": data.DESCRIPTIONS.get(detailed) or default_description(spec),
+            "description": self.data.DESCRIPTIONS.get(detailed) or self.data.default_description(spec),
             "comments": [],
             "histories": [],
             "attachments": [],
@@ -155,11 +155,12 @@ class Board:
         }
         # Status moves along the main line, the last one at last_at, the others spread before it. Reworked:
         # the review sent the issue back once.
-        moves = data.MAIN_LINE[1:status_index + 1]
-        if spec.get("reworked") and "10100" in moves:
-            review = moves.index("10100") + 1
-            moves = moves[:review] + ("3", "10100") + moves[review:]
-        reviewer = rng.choice([login for login in data.DEVELOPERS if login != developer])
+        moves = self.data.MAIN_LINE[1:status_index + 1]
+        review_status = self.data.REVIEW_STATUS
+        if spec.get("reworked") and review_status in moves:
+            review = moves.index(review_status) + 1
+            moves = moves[:review] + (self.data.DEV_STATUS, review_status) + moves[review:]
+        reviewer = rng.choice([login for login in self.data.DEVELOPERS if login != developer])
         times = sorted(
             self._working(
                 created + (last_at - created) * clock.uniform(0.15, 0.95),
@@ -168,10 +169,10 @@ class Board:
             for _ in moves[:-1]
         ) + [last_at] if moves else []
         for status, at in zip(moves, times):
-            author = tester if status in ("10102", data.DONE_STATUS) else developer
-            if status == "3" and issue["status"] == "10100":
+            author = tester if status in self.data.TESTER_STATUSES else developer
+            if status == self.data.DEV_STATUS and issue["status"] == review_status:
                 author = reviewer
-            elif status == "3":
+            elif status == self.data.DEV_STATUS:
                 self._assign(
                     issue,
                     developer,
@@ -184,7 +185,7 @@ class Board:
                 author,
                 at
             )
-            if status == "10101":
+            if status == self.data.HANDOVER_STATUS:
                 # Handed over to QA: to a tester, or to nobody when QA picks issues from the column.
                 self._assign(
                     issue,
@@ -212,7 +213,7 @@ class Board:
             created,
             now
         )
-        for name, author in data.ATTACHMENTS.get(detailed, ()):
+        for name, author in self.data.ATTACHMENTS.get(detailed, ()):
             issue["attachments"].append({
                 "id": str(FIRST_ATTACHMENT_ID + len(issue["attachments"]) + index * 10),
                 "filename": name,
@@ -223,19 +224,19 @@ class Board:
             # The previous sprint closed with the issue unfinished: Jira adds the next sprint to its field.
             self._history(
                 issue,
-                data.SPRINT_OWNER,
+                self.data.SPRINT_OWNER,
                 self.sprint_start,
                 [item(
                     "Sprint",
-                    str(data.PREVIOUS_SPRINT_ID),
-                    data.PREVIOUS_SPRINT_NAME,
-                    f"{data.PREVIOUS_SPRINT_ID}, {data.SPRINT_ID}",
-                    f"{data.PREVIOUS_SPRINT_NAME}, {data.SPRINT_NAME}"
+                    str(self.data.PREVIOUS_SPRINT_ID),
+                    self.data.PREVIOUS_SPRINT_NAME,
+                    f"{self.data.PREVIOUS_SPRINT_ID}, {self.data.SPRINT_ID}",
+                    f"{self.data.PREVIOUS_SPRINT_NAME}, {self.data.SPRINT_NAME}"
                 )]
             )
         issue["histories"].sort(key=lambda history: history["created"])
         if spec["type"] == "Bug":
-            issue["criticality"] = CRITICALITY[spec["priority"]]
+            issue["criticality"] = self.data.CRITICALITY[spec["priority"]]
             issue["environments"] = ["Production"] if spec["priority"] in ("Highest", "High") else ["Staging"]
         return issue
 
@@ -283,13 +284,13 @@ class Board:
             now
     ):
         detailed = issue["detailed"]
-        if detailed in data.COMMENTS:
-            comments = data.COMMENTS[detailed]
+        if detailed in self.data.COMMENTS:
+            comments = self.data.COMMENTS[detailed]
         else:
             comments = [
-                (rng.choice(list(data.PEOPLE)), text)
+                (rng.choice(list(self.data.PEOPLE)), text)
                 for text in rng.sample(
-                    data.NOT_STARTED_COMMENTS if issue["status"] == "1" else data.GENERIC_COMMENTS,
+                    self.data.NOT_STARTED_COMMENTS if issue["status"] == self.data.MAIN_LINE[0] else self.data.GENERIC_COMMENTS,
                     rng.choice((0, 0, 1, 1, 2))
                 )
             ]
@@ -311,7 +312,7 @@ class Board:
 
     def _link_issues(self):
         by_detail = {issue["detailed"]: issue for issue in self.issues if issue["detailed"]}
-        for origin, link, target in data.LINKS:
+        for origin, link, target in self.data.LINKS:
             by_detail[origin]["links"].append(("outward", link, by_detail[target]["key"]))
             by_detail[target]["links"].append(("inward", link, by_detail[origin]["key"]))
 
@@ -341,24 +342,24 @@ class Board:
             issue,
             author,
             at,
-            [item("status", previous, status_name(previous), status, status_name(status))]
+            [item("status", previous, self._status_name(previous), status, self._status_name(status))]
         )
-        role_dates = {"10101": "deliveredAt", "10102": "installedAt", data.DONE_STATUS: "acceptedAt"}
+        role_dates = self.data.DATE_STATUSES
         if status in role_dates:
             issue["dates"][role_dates[status]] = at
-        if status in ("3", "10100"):
+        if status in (self.data.DEV_STATUS, self.data.REVIEW_STATUS):
             issue["developer"] = issue["developer"] or author
-        if status in ("10102", data.DONE_STATUS):
+        if status in self.data.TESTER_STATUSES:
             issue["tester"] = author
-        if status == data.DONE_STATUS:
+        if status == self.data.DONE_STATUS:
             issue["resolution"], issue["resolutiondate"] = "Done", at
             self._history(
                 issue,
-                data.BOT[0],
+                self.data.BOT[0],
                 at,
                 [item("resolution", None, None, "10000", "Done")]
             )
-        elif previous == data.DONE_STATUS:
+        elif previous == self.data.DONE_STATUS:
             issue["resolution"], issue["resolutiondate"] = None, None
             for role in role_dates.values():
                 issue["dates"].pop(role, None)
@@ -378,7 +379,7 @@ class Board:
             issue,
             author,
             at,
-            [item("assignee", previous, data.PEOPLE.get(previous), login, data.PEOPLE.get(login))]
+            [item("assignee", previous, self.data.PEOPLE.get(previous), login, self.data.PEOPLE.get(login))]
         )
 
     def _comment(
@@ -397,8 +398,9 @@ class Board:
             key,
             before=None,
             after=None,
-            author=data.ME
+            author=None
     ):
+        author = author or self.data.ME
         with self._lock:
             issue = self._find(key)
             neighbour = self._find(before or after)
@@ -416,11 +418,12 @@ class Board:
             self,
             key,
             login,
-            author=data.ME
+            author=None
     ):
+        author = author or self.data.ME
         with self._lock:
             issue = self._find(key)
-            if login is not None and login not in data.PEOPLE:
+            if login is not None and login not in self.data.PEOPLE:
                 raise JiraRefusal([], {"assignee": f"User '{login}' does not exist."})
             self._assign(
                 issue,
@@ -433,11 +436,12 @@ class Board:
             self,
             key,
             transition_id,
-            author=data.ME
+            author=None
     ):
+        author = author or self.data.ME
         with self._lock:
             issue = self._find(key)
-            target = next((to for id_, _, to in data.WORKFLOW[issue["status"]] if id_ == transition_id), None)
+            target = next((to for id_, _, to in self.data.WORKFLOW[issue["status"]] if id_ == transition_id), None)
             if target is None:
                 raise JiraRefusal([
                     f"It seems that you have tried to perform a workflow operation ({transition_id}) that is not "
@@ -468,37 +472,37 @@ class Board:
         """One change by a colleague, as if someone else were using Jira: a move, a comment or an
         assignment. Returns what happened, for the log; None when nothing applied."""
         with self._lock:
-            others = [login for login in data.PEOPLE if login != data.ME]
-            open_issues = [issue for issue in self.issues if issue["status"] != data.DONE_STATUS]
+            others = [login for login in self.data.PEOPLE if login != self.data.ME]
+            open_issues = [issue for issue in self.issues if issue["status"] != self.data.DONE_STATUS]
             action = rng.choices(("move", "comment", "assign"), weights=(5, 4, 2))[0]
             if action == "assign":
                 unassigned = [issue for issue in open_issues if issue["assignee"] is None]
                 if unassigned:
                     issue = rng.choice(unassigned)
-                    who = rng.choice(data.TESTERS if issue["status"] in ("10101", "10102") else data.DEVELOPERS[1:])
+                    who = rng.choice(self.data.TESTERS if issue["status"] in self.data.QA_STATUSES else self.data.DEVELOPERS[1:])
                     self.assign(issue["key"], who, who)
-                    return f"{data.PEOPLE[who]} took {issue['key']}"
+                    return f"{self.data.PEOPLE[who]} took {issue['key']}"
                 action = "move"
             if action == "comment":
                 # Often on the viewer's issues: they are the ones the notifications are about.
-                mine = [issue for issue in open_issues if issue["assignee"] == data.ME]
+                mine = [issue for issue in open_issues if issue["assignee"] == self.data.ME]
                 issue = rng.choice(mine if mine and rng.random() < 0.5 else open_issues)
                 who = rng.choice([login for login in others if login != issue["assignee"]])
-                self.comment(issue["key"], who, rng.choice(data.LIVE_COMMENTS))
-                return f"{data.PEOPLE[who]} commented on {issue['key']}"
-            movable = [issue for issue in open_issues if issue["assignee"] != data.ME]
+                self.comment(issue["key"], who, rng.choice(self.data.LIVE_COMMENTS))
+                return f"{self.data.PEOPLE[who]} commented on {issue['key']}"
+            movable = [issue for issue in open_issues if issue["assignee"] != self.data.ME]
             if not movable:
                 return None
             issue = rng.choice(movable)
             # Mostly forward, sometimes back (changes requested, a failed test): the board does not only
             # drift to Done.
-            transitions = data.WORKFLOW[issue["status"]]
+            transitions = self.data.WORKFLOW[issue["status"]]
             transition_id, name, target = transitions[1 if len(transitions) > 1 and rng.random() < 0.25 else 0]
-            who = issue["assignee"] or rng.choice(data.TESTERS if target == "10102" else data.DEVELOPERS[1:])
+            who = issue["assignee"] or rng.choice(self.data.TESTERS if target in self.data.TESTER_STATUSES else self.data.DEVELOPERS[1:])
             self.transition(issue["key"], transition_id, who)
             if issue["assignee"] is None:
                 self.assign(issue["key"], who, who)
-            return f"{data.PEOPLE[who]} moved {issue['key']} to {status_name(target)} ({name})"
+            return f"{self.data.PEOPLE[who]} moved {issue['key']} to {self._status_name(target)} ({name})"
 
     def _find(self, key):
         issue = next((issue for issue in self.issues if issue["key"] == key), None)
@@ -514,20 +518,20 @@ class Board:
             now = datetime.now().astimezone()
             issues = [issue for issue in self.issues if quick_filter is None or self._matches(issue, quick_filter)]
             return {
-                "rapidViewId": data.BOARD_ID,
+                "rapidViewId": self.data.BOARD_ID,
                 "columnsData": {
                     "columns": [
                         {"id": index + 1, "name": name, "statusIds": list(statuses)}
-                        for index, (name, statuses) in enumerate(data.COLUMNS)
+                        for index, (name, statuses) in enumerate(self.data.COLUMNS)
                     ],
                 },
                 "issuesData": {"issues": [self._board_issue(issue) for issue in issues]},
                 "sprintsData": {
                     "sprints": [{
-                        "id": data.SPRINT_ID,
-                        "name": data.SPRINT_NAME,
+                        "id": self.data.SPRINT_ID,
+                        "name": self.data.SPRINT_NAME,
                         "state": "ACTIVE",
-                        "goal": data.SPRINT_GOAL,
+                        "goal": self.data.SPRINT_GOAL,
                         "startDate": self.sprint_start.strftime(BOARD_DATE),
                         "endDate": self.sprint_end.strftime(BOARD_DATE),
                         "daysRemaining": working_days(now, self.sprint_end),
@@ -536,15 +540,15 @@ class Board:
                 "entityData": {
                     "types": {
                         type_id: {"typeName": name, "typeUrl": self._icon_url(file)}
-                        for type_id, (name, file) in data.TYPES.items()
+                        for type_id, (name, file) in self.data.TYPES.items()
                     },
                     "priorities": {
                         priority_id: {"priorityName": name, "priorityUrl": self._icon_url(file)}
-                        for priority_id, (name, file) in data.PRIORITIES.items()
+                        for priority_id, (name, file) in self.data.PRIORITIES.items()
                     },
                     "statuses": {
                         status_id: {"statusName": name, "status": self._status(status_id)}
-                        for status_id, (name, _) in data.STATUSES.items()
+                        for status_id, (name, _) in self.data.STATUSES.items()
                     },
                     "epics": {
                         str(epic["id"]): {
@@ -564,9 +568,9 @@ class Board:
     def edit_model(self):
         """rest/greenhopper/1.0/rapidviewconfig/editmodel.json: the board's name and quick filters."""
         return {
-            "id": data.BOARD_ID,
-            "name": data.BOARD_NAME,
-            "quickFilterConfig": {"quickFilters": [dict(f) for f in data.QUICK_FILTERS]},
+            "id": self.data.BOARD_ID,
+            "name": self.data.BOARD_NAME,
+            "quickFilterConfig": {"quickFilters": [dict(f) for f in self.data.QUICK_FILTERS]},
         }
 
     def active_sprints(self):
@@ -575,13 +579,13 @@ class Board:
             "startAt": 0,
             "isLast": True,
             "values": [{
-                "id": data.SPRINT_ID,
+                "id": self.data.SPRINT_ID,
                 "state": "active",
-                "name": data.SPRINT_NAME,
+                "name": self.data.SPRINT_NAME,
                 "startDate": self.sprint_start.isoformat(timespec="milliseconds"),
                 "endDate": self.sprint_end.isoformat(timespec="milliseconds"),
-                "originBoardId": data.BOARD_ID,
-                "goal": data.SPRINT_GOAL,
+                "originBoardId": self.data.BOARD_ID,
+                "goal": self.data.SPRINT_GOAL,
             }],
         }
 
@@ -652,13 +656,13 @@ class Board:
             )
 
     def myself(self):
-        return self._user(data.ME)
+        return self._user(self.data.ME)
 
     def assignable(self, query):
         """Users whose login, name or a word of it starts with the query, as Jira's user picker."""
         query = query.lower()
         found = [
-            login for login, name in data.PEOPLE.items()
+            login for login, name in self.data.PEOPLE.items()
             if not query or login.startswith(query) or any(word.lower().startswith(query) for word in name.split())
         ]
         return [self._user(login) for login in found]
@@ -672,7 +676,7 @@ class Board:
             for issue in self.issues:
                 for file in issue["attachments"]:
                     if file["id"] == attachment_id and file["filename"] == name:
-                        return icons.attachment(name)
+                        return icons.attachment(self.data.DRAWINGS, name)
         return None
 
     def issue_json(
@@ -717,12 +721,12 @@ class Board:
         if "transitions" in expand:
             result["transitions"] = [
                 {"id": id_, "name": name, "to": self._status(to)}
-                for id_, name, to in data.WORKFLOW[issue["status"]]
+                for id_, name, to in self.data.WORKFLOW[issue["status"]]
             ]
         return result
 
     def _fields(self, issue):
-        custom = data.FIELDS
+        custom = self.data.FIELDS
         fields = {
             "summary": issue["summary"],
             "status": self._status(issue["status"]),
@@ -750,8 +754,12 @@ class Board:
                     for c in issue["comments"]
                 ],
             },
-            "fixVersions": [{"id": "10400", "name": data.FIX_VERSION, "released": False}],
-            "components": [{"name": COMPONENTS[label]} for label in issue["labels"] if label in COMPONENTS],
+            "fixVersions": [{"id": "10400", "name": self.data.FIX_VERSION, "released": False}],
+            "components": [
+                {"name": self.data.COMPONENTS[label]}
+                for label in issue["labels"]
+                if label in self.data.COMPONENTS
+            ],
             "issuelinks": [self._link(*link) for link in issue["links"]],
             "subtasks": [],
             "attachment": [
@@ -760,7 +768,7 @@ class Board:
                     "filename": file["filename"],
                     "author": self._user(file["author"]),
                     "created": jira_date(file["created"]),
-                    "size": len(icons.attachment(file["filename"])),
+                    "size": len(icons.attachment(self.data.DRAWINGS, file["filename"])),
                     "mimeType": "image/svg+xml",
                     "content": url,
                     "thumbnail": url,
@@ -784,8 +792,8 @@ class Board:
 
     def _board_issue(self, issue):
         assignee = issue["assignee"]
-        type_name, type_file = data.TYPES[issue["type"]]
-        priority_name, priority_file = data.PRIORITIES[issue["priority"]]
+        type_name, type_file = self.data.TYPES[issue["type"]]
+        priority_name, priority_file = self.data.PRIORITIES[issue["priority"]]
         entry = {
             "id": int(issue["id"]),
             "key": issue["key"],
@@ -798,17 +806,17 @@ class Board:
             "priorityName": priority_name,
             "priorityUrl": self._icon_url(priority_file),
             "statusId": issue["status"],
-            "statusName": status_name(issue["status"]),
-            "done": issue["status"] == data.DONE_STATUS,
+            "statusName": self._status_name(issue["status"]),
+            "done": issue["status"] == self.data.DONE_STATUS,
             "estimateStatistic": {
-                "statFieldId": data.FIELDS["storyPoints"],
+                "statFieldId": self.data.FIELDS["storyPoints"],
                 "statFieldValue": {} if issue["points"] is None else {"value": issue["points"]},
             },
         }
         if assignee:
             entry.update(
                 assignee=assignee,
-                assigneeName=data.PEOPLE[assignee],
+                assigneeName=self.data.PEOPLE[assignee],
                 avatarUrl=self._avatar_url(assignee)
             )
         if issue["epic"]:
@@ -820,14 +828,14 @@ class Board:
             issue,
             quick_filter
     ):
-        query = next((f["query"] for f in data.QUICK_FILTERS if str(f["id"]) == str(quick_filter)), None)
+        query = next((f["query"] for f in self.data.QUICK_FILTERS if str(f["id"]) == str(quick_filter)), None)
         person = PERSON_FILTER.match(query or "")
         if person:
             return issue["assignee"] == person.group(1)
         return {
-            "assignee = currentUser()": issue["assignee"] == data.ME,
+            "assignee = currentUser()": issue["assignee"] == self.data.ME,
             "assignee is EMPTY": issue["assignee"] is None,
-            "issuetype = Bug": data.TYPES[issue["type"]][0] == "Bug",
+            "issuetype = Bug": self.data.TYPES[issue["type"]][0] == "Bug",
             "labels = blocked": "blocked" in issue["labels"],
         }.get(query, True)
 
@@ -855,14 +863,14 @@ class Board:
 
     def _sprint_string(self, sprint_id):
         # Jira Server serialises the sprint field as a Java object's toString(), which the page parses.
-        if sprint_id == data.SPRINT_ID:
-            name, state, start, end = data.SPRINT_NAME, "ACTIVE", self.sprint_start, self.sprint_end
+        if sprint_id == self.data.SPRINT_ID:
+            name, state, start, end = self.data.SPRINT_NAME, "ACTIVE", self.sprint_start, self.sprint_end
         else:
-            length = timedelta(days=data.SPRINT_LENGTH_DAYS)
-            name, state, start, end = data.PREVIOUS_SPRINT_NAME, "CLOSED", self.sprint_start - length, self.sprint_start
+            length = timedelta(days=self.data.SPRINT_LENGTH_DAYS)
+            name, state, start, end = self.data.PREVIOUS_SPRINT_NAME, "CLOSED", self.sprint_start - length, self.sprint_start
         return (
             f"com.atlassian.greenhopper.service.sprint.Sprint@{sprint_id:x}5e1f[id={sprint_id},"
-            f"rapidViewId={data.BOARD_ID},state={state},name={name},startDate={start.isoformat()},"
+            f"rapidViewId={self.data.BOARD_ID},state={state},name={name},startDate={start.isoformat()},"
             f"endDate={end.isoformat()},completeDate=<null>,sequence={sprint_id},goal=]"
         )
 
@@ -875,25 +883,25 @@ class Board:
     def _user(self, login):
         if login is None:
             return None
-        name = data.PEOPLE.get(login) or (data.BOT[1] if login == data.BOT[0] else login)
+        name = self.data.PEOPLE.get(login) or (self.data.BOT[1] if login == self.data.BOT[0] else login)
         avatar = self._avatar_url(login)
         return {
             "self": f"{self.base}/rest/api/2/user?username={login}",
             "name": login,
             "key": login,
             "displayName": name,
-            "emailAddress": f"{login}@folio.example",
+            "emailAddress": f"{login}@{self.data.EMAIL_DOMAIN}",
             "active": True,
             "avatarUrls": {size: avatar for size in ("48x48", "24x24", "16x16", "32x32")},
         }
 
     def _avatar_url(self, login):
         # Jira's default avatar (no ownerId): the page draws the person's initials instead.
-        logins = list(data.PEOPLE) + [data.BOT[0]]
+        logins = list(self.data.PEOPLE) + [self.data.BOT[0]]
         return f"{self.base}/secure/useravatar?avatarId={AVATAR_ID_BASE + logins.index(login)}"
 
     def _status(self, status_id):
-        name, category = data.STATUSES[status_id]
+        name, category = self.data.STATUSES[status_id]
         return {
             "self": f"{self.base}/rest/api/2/status/{status_id}",
             "id": status_id,
@@ -902,12 +910,15 @@ class Board:
         }
 
     def _type(self, type_id):
-        name, file = data.TYPES[type_id]
+        name, file = self.data.TYPES[type_id]
         return {"id": type_id, "name": name, "subtask": False, "iconUrl": self._icon_url(file)}
 
     def _priority(self, priority_id):
-        name, file = data.PRIORITIES[priority_id]
+        name, file = self.data.PRIORITIES[priority_id]
         return {"id": priority_id, "name": name, "iconUrl": self._icon_url(file)}
+
+    def _status_name(self, status_id):
+        return self.data.STATUSES[status_id][0] if status_id else None
 
     def _icon_url(self, file):
         return f"{self.base}/images/icons/demo/{file}"
@@ -928,10 +939,6 @@ def item(
         "to": to_id,
         "toString": to_string,
     }
-
-
-def status_name(status_id):
-    return data.STATUSES[status_id][0] if status_id else None
 
 
 def jira_date(moment):
@@ -957,30 +964,11 @@ def working_days(
     return days
 
 
-def default_description(spec):
-    if spec["type"] == "Bug":
-        return (
-            "h3. Steps\n"
-            "# Open the page on staging\n"
-            f"# {spec['summary']}\n"
-            "h3. Expected\n"
-            "The same behaviour as on the previous release."
-        )
-    if spec["type"] == "Task":
-        return f"{spec['summary']}.\nNo visible change for customers: checked by the usual monitoring."
-    return (
-        "As a customer, I want this so that buying a book is quicker.\n"
-        "h3. Acceptance criteria\n"
-        "* Works on the latest two versions of every major browser\n"
-        "* Covered by the end-to-end checkout tests"
-    )
-
-
 def render_wiki(
         text,
         attachments
 ):
-    """Jira's wiki markup to HTML, for the subset dataset.py uses: headings, lists, embedded images,
+    """Jira's wiki markup to HTML, for the subset the scenarios use: headings, lists, embedded images,
     monospace, bold and italics."""
     out, list_tag = [], None
     for line in text.split("\n"):

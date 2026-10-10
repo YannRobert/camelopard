@@ -1,14 +1,16 @@
 """Jirafe on a fictional board, without a Jira: starts a fake Jira, then Jirafe pointed at it.
 
-    python3 demo/run.py                 # opens the demo board in the browser
-    python3 demo/run.py --jira-only     # only the fake Jira, for a Jirafe started by hand
+    python3 demo/run.py                       # opens the demo board in the browser
+    python3 demo/run.py --scenario <name>     # another board, from demo/scenarios
+    python3 demo/run.py --jira-only           # only the fake Jira, for a Jirafe started by hand
 
-The board, its team and its history are invented (dataset.py) and placed relative to the moment the demo
+The board, its team and its history are invented (the scenario's dataset.py) and placed relative to the moment the demo
 starts. Colleagues keep changing issues while it runs (--activity), so that the live refresh, the
 notifications and "since your last visit" have something to show. Nothing is kept: every start begins
 afresh, and the local copy of issues goes to a temporary directory, away from a real Jirafe's.
 """
 import argparse
+import importlib
 import os
 import shutil
 import signal
@@ -18,11 +20,12 @@ import tempfile
 import time
 from pathlib import Path
 
-import fakejira
+from fakejira import server as fakejira
 
 DEMO_DIR = Path(__file__).resolve().parent
 SRC_DIR = DEMO_DIR.parent / "src"
-CONFIG_FILE = DEMO_DIR / "config.json"
+SCENARIOS_DIR = DEMO_DIR / "scenarios"
+DEFAULT_SCENARIO = "bookshop"
 # Another port than Jirafe's default (8766): the page keeps its data per origin, so a real board saved in
 # the browser never shows up in a screenshot of the demo, and both can run side by side.
 DEFAULT_PORT = 8767
@@ -39,6 +42,7 @@ def main():
             errors="replace"
         )
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--scenario", choices=scenarios(), default=DEFAULT_SCENARIO, help="board to serve (default: %(default)s)")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Jirafe's port (default: %(default)s)")
     parser.add_argument("--jira-port", type=int, default=DEFAULT_JIRA_PORT, help="fake Jira's port (default: %(default)s)")
     parser.add_argument("--activity", type=int, default=DEFAULT_ACTIVITY_S, help="average seconds between two changes by colleagues, 0 for none (default: %(default)s)")
@@ -50,20 +54,22 @@ def main():
     try:
         jira = fakejira.start(
             args.jira_port,
+            load(args.scenario),
             args.activity,
             args.quiet
         )
     except OSError as error:
         sys.exit(f"Port {args.jira_port} unavailable for the fake Jira ({error.strerror}): try --jira-port.")
+    config_file = SCENARIOS_DIR / args.scenario / "config.json"
     print(f"Demo Jira: {jira.base_url}", flush=True)
     if args.jira_only:
-        print(f"Jirafe: JIRA_PAT={DEMO_TOKEN} python3 -m jirafe --config {CONFIG_FILE} --jira-host {jira.base_url}")
+        print(f"Jirafe: JIRA_PAT={DEMO_TOKEN} python3 -m jirafe --config {config_file} --jira-host {jira.base_url}")
         wait_forever()
         return
     mirror_dir = tempfile.mkdtemp(prefix="jirafe-demo-")
     command = [
         sys.executable, "-m", "jirafe",
-        "--config", str(CONFIG_FILE),
+        "--config", str(config_file),
         "--jira-host", jira.base_url,
         "--port", str(args.port),
         "--mirror-dir", mirror_dir,
@@ -93,6 +99,16 @@ def main():
             mirror_dir,
             ignore_errors=True
         )
+
+
+def scenarios():
+    """Scenario names: the packages of demo/scenarios with a dataset."""
+    return sorted(path.parent.name for path in SCENARIOS_DIR.glob("*/dataset.py"))
+
+
+def load(name):
+    """A scenario's dataset module, which the fake Jira's board reads."""
+    return importlib.import_module(f"scenarios.{name}.dataset")
 
 
 def wait_forever():

@@ -20,9 +20,11 @@ sys.path.insert(
     0,
     str(Path(__file__).resolve().parents[1] / "demo")
 )
-import dataset  # noqa: E402
-from board import Board  # noqa: E402
-import fakejira  # noqa: E402
+import run  # noqa: E402
+from fakejira import server as fakejira  # noqa: E402
+from fakejira.board import Board  # noqa: E402
+
+dataset = run.load(run.DEFAULT_SCENARIO)
 
 DAY_MS = 24 * 3600 * 1000
 
@@ -30,7 +32,10 @@ DAY_MS = 24 * 3600 * 1000
 class DemoJiraTest(unittest.TestCase):
 
     def setUp(self):
-        self.jira = fakejira.FakeJiraServer(0)
+        self.jira = fakejira.FakeJiraServer(
+            0,
+            dataset
+        )
         self.jira.quiet = True
         # A short poll: shutdown() waits for it, at the end of every test.
         threading.Thread(
@@ -179,6 +184,7 @@ class DemoContentTest(unittest.TestCase):
                 )
                 for issue in Board(
                     "http://jira.test",
+                    dataset,
                     now
                 ).issues
             ]
