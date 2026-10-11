@@ -828,6 +828,11 @@ const AUTO_REFRESH_KEY = "sprint-board.autoRefresh";
 const FRESHNESS_SEGMENTS = 5;
 // When coming back to the tab, data older than this is refreshed right away.
 const STALE_ON_FOCUS_MS = 30 * 1000;
+// The status line's age is redrawn this often and, under SECONDS_SHOWN_MS, counted in steps of this size:
+// "10 s" tells a refresh just made from one a minute old, without a counter ticking every second. Past a
+// minute it keeps moving rather than stay at "1 min" for a minute, which looks stuck.
+const STATUS_TICK_MS = 5 * 1000;
+const SECONDS_SHOWN_MS = 2 * 60 * 1000;
 // Quick filters, current user and board name: they almost never change.
 const META_TTL_MS = 12 * 3600 * 1000;
 // Local copy synced more recently than this: no new Jira call when opening. The server applies the same
@@ -2252,7 +2257,9 @@ $("about").addEventListener("click", () => toggleAboutPanel($("about-panel").hid
 
 function compactDuration(ms) {
   const minutes = Math.max(0, Math.floor(ms / 60000));
-  if (minutes < 1) return "< 1 min";
+  const step = STATUS_TICK_MS / 1000;
+  const seconds = Math.max(0, Math.floor(ms / STATUS_TICK_MS)) * step;
+  if (ms < SECONDS_SHOWN_MS) return seconds ? `${seconds} s` : `< ${step} s`;
   if (minutes < 60) return `${minutes} min`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h${minutes % 60 ? String(minutes % 60).padStart(2, "0") : ""}`;
@@ -4654,7 +4661,7 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("storage", e => {
   if (e.key === SNAPSHOT_KEY) adoptNewerSnapshot();
 });
-setInterval(renderStatus, 15 * 1000);
+setInterval(renderStatus, STATUS_TICK_MS);
 setInterval(refreshLoad, LOAD_PANEL_REFRESH_MS);
 setInterval(watchChanges, CHANGES_POLL_MS);
 // Without waiting for the first poll: the cards to look at are marked from the first render.
