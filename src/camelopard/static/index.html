@@ -110,7 +110,8 @@ try {
   .about-panel ul { margin: 0.6rem 0 0; padding: 0; list-style: none; display: grid; gap: 0.3rem; }
   header .brand .logo { width: 3rem; height: 3rem; flex: none; }
   header .brand .j { color: var(--accent); }
-  header .brand .name { display: flex; flex-direction: column; line-height: 1.05; }
+  /* The gap clears the name's descenders (the p of Camelopard) from the tagline under it. */
+  header .brand .name { display: flex; flex-direction: column; gap: 0.2rem; line-height: 1.05; }
   header .brand .tagline { color: var(--muted); font-size: 0.85rem; font-weight: 500; font-style: italic; letter-spacing: 0; }
   header .titles { flex: 1 1 14rem; display: flex; flex-direction: column; min-width: 0; }
   header .crumb { color: var(--muted); font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
