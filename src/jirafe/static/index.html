@@ -302,10 +302,10 @@ try {
   .filters button.qf.me[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
   /* Giraffe horns (ossicones, as on the logo) planted on the last letter of the first name, to keep the
      initial readable: the top of a lowercase letter is ~0.5em below the top of the box; the horns (0.7em)
-     sink their base into it. */
+     stand on it rather than sink into it, which would turn an "n" into an "h". */
   .qf.me .horned, .people-menu .me .horned { position: relative; display: inline-block; }
   .qf.me .horned::before, .people-menu .me .horned::before {
-    content: ""; position: absolute; left: 50%; top: -0.14em; width: 0.8em; height: 0.7em;
+    content: ""; position: absolute; left: 50%; top: -0.3em; width: 0.8em; height: 0.7em;
     transform: translateX(-50%) rotate(-6deg); pointer-events: none;
     background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 17'%3E%3Cg stroke-linecap='round' fill='none'%3E%3Cpath d='M7.5 16 L5.6 5.5 M12.5 16 L14.4 5.5' stroke='%233b2412' stroke-width='4.6'/%3E%3Cpath d='M7.5 16 L5.6 5.5 M12.5 16 L14.4 5.5' stroke='%23f2b84b' stroke-width='2.2'/%3E%3C/g%3E%3Cg fill='%238a4f1c' stroke='%233b2412' stroke-width='1.2'%3E%3Ccircle cx='5.4' cy='4.2' r='3'/%3E%3Ccircle cx='14.6' cy='4.2' r='3'/%3E%3C/g%3E%3C/svg%3E");
     filter: drop-shadow(0 1px 0.5px rgb(0 0 0 / 35%));
@@ -1446,7 +1446,11 @@ function renderHeader() {
   if (!board) return;
   const sprint = sprintOf(board);
   $("sprint-name").textContent = sprint?.name ?? "Sprint";
-  $("sprint-name").title = sprint?.goal || "";
+  // On a narrow window the name is cut short by the header's data: the tooltip gives it back whole.
+  $("sprint-name").title = [
+    sprint?.name,
+    sprint?.goal
+  ].filter(Boolean).join("\n");
   const select = $("sprint");
   select.hidden = board.sprints.length < 2;
   select.innerHTML = `<option value="" disabled>Change sprint</option>` + board.sprints
