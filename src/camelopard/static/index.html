@@ -580,7 +580,8 @@ try {
   }
   aside .bar { flex: none; display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); }
   aside .bar .key { font-weight: 600; }
-  aside .bar .nav { color: var(--faint); font-size: 0.75rem; }
+  /* Set apart from the issue key: it is help about the keys, not part of the issue's name. */
+  aside .bar .nav { margin-left: 0.9rem; color: var(--faint); font-size: 0.75rem; }
   aside .bar .spacer { flex: 1; }
   aside .bar .sync { font-size: 0.8rem; }
   .sync-failed { color: var(--red); }
