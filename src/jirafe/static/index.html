@@ -22,7 +22,7 @@ try {
     color-scheme: dark;
     /* Width of the detail on the side, which the bulk bar steps aside from. */
     --side-panel-width: min(44rem, 94vw);
-    --bg: #24201b;
+    --bg: #1f1b17;
     --column: #2d2822;
     --card: #37312a;
     --card-hover: #413a32;
@@ -393,12 +393,19 @@ try {
   }
   .column h2 .n { font-weight: 400; white-space: nowrap; }
   /* A wide column (a view showing only part of the board: 5 columns instead of 10) lays its cards side by
-     side: the screen is used in width instead of forcing vertical scrolling. */
+     side: the screen is used in width instead of forcing vertical scrolling. fitLanes() decides it, from
+     the sizes below (LANE_* constants), so that the wider spacing it brings never takes the second lane away. */
   .cards {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+    display: grid; grid-template-columns: minmax(0, 1fr);
     align-content: start; gap: 0.4rem; padding: 0 0.4rem 0.5rem;
   }
   .cards .empty-col { grid-column: 1 / -1; }
+  /* Cards side by side: the gap between two board columns must clearly beat the one between two cards, or
+     three columns of two lanes read as six. Wider gaps and margins, and a rule under the heading spanning
+     both lanes, keep each column one block; one lane per column is left as it is. */
+  .board.lanes { gap: 1.25rem; }
+  .board.lanes .cards { grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); padding: 0 0.75rem 0.75rem; }
+  .board.lanes .column h2 { margin: 0 0.75rem 0.5rem; padding-inline: 0; border-bottom: 1px solid var(--border); border-radius: 0; }
 
   .card {
     display: block; color: var(--text); background: var(--card); border-radius: 6px; box-shadow: var(--shadow);
@@ -904,6 +911,12 @@ const VIEW_KEY = "sprint-board.view";
 const PEOPLE_AS_BUTTONS = 4;
 // Past this many issues, the bell's count reads "99+": the exact number is in its title and panel.
 const ACTIVITY_BADGE_MAX = 99;
+// Cards side by side in a column (the .board.lanes and .cards rules): a card's narrowest width, the gap
+// between two cards, and the board's gap and column margin once they sit side by side.
+const LANE_MIN_REM = 15;
+const LANE_GAP_REM = 0.4;
+const LANES_BOARD_GAP_REM = 1.25;
+const LANES_PADDING_REM = 0.75;
 // Room kept between the last filter shown and the "+N more" button.
 const FILTERS_GAP_PX = 8;
 const DOCK_KEY = "sprint-board.panelDock";
@@ -1570,6 +1583,23 @@ function showMoreFilters(open) {
 // The line's room changes with the window, and with the count beside it.
 new ResizeObserver(fitFilters).observe($("filters"));
 
+// Cards side by side when two fit in every column once the board takes the wider spacing of .board.lanes:
+// decided from the board's width alone, so the spacing cannot take the second lane away and flip it back.
+function fitLanes() {
+  const board = $("board");
+  const count = board.querySelectorAll(".column").length;
+  if (!count) return;
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  const column = (board.clientWidth - (count - 1) * LANES_BOARD_GAP_REM * rem) / count;
+  board.classList.toggle(
+    "lanes",
+    column - 2 * LANES_PADDING_REM * rem >= (2 * LANE_MIN_REM + LANE_GAP_REM) * rem
+  );
+}
+
+// The board's width changes with the window and the zoom (the base size follows the screen width too).
+new ResizeObserver(fitLanes).observe($("board"));
+
 // The colleagues' filters as one list, the user's own first: a native list cannot show the avatars, which
 // tell apart people the board's filters name by a nickname. The button shows the one switched on.
 function peopleHtml(
@@ -2044,6 +2074,8 @@ function renderBoard() {
       `<span class="n" title="${issues.length} issue(s), ${formatPoints(points)} point(s)">${issues.length}${points ? ` · ${formatPoints(points)} pts` : ""}</span></h2>` +
       `<div class="cards">${issues.length ? issues.map(i => card(i, board)).join("") : `<div class="empty-col">—</div>`}</div></section>`;
   }).join("");
+  // The number of columns changes with the view, without the board changing size.
+  fitLanes();
 }
 
 // Readable first name next to the avatar: the one of the person's quick filter ("Alice") when it exists,
