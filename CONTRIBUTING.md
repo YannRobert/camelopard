@@ -33,8 +33,17 @@ python3 -m compileall -q src tests demo
 python3 -m unittest
 ```
 
-The tests never call JIRA. For a change to the page or to the sync, also check the board, the detail
-panel and the `GET /stats` counter by hand in the browser.
+The tests never call JIRA. Those of the page (`tests/e2e`) run in a real browser and are skipped unless
+the development tools are installed, as CI does on every pull request:
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+python3 -m playwright install chromium
+python3 -m unittest tests.e2e.test_board
+```
+
+A pull request is merged once CI passes on Linux, macOS and Windows and in the browser. For a change to
+the page or to the sync, also check the board, the detail panel and the `GET /stats` counter by hand.
 
 ## Pull requests
 

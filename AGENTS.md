@@ -6,7 +6,10 @@ file lists what must be respected when changing it.
 ## Non-negotiable constraints
 
 - **Standard library only**, in Python as in the page: no `pip install`, no framework, no CDN, no build
-  step. The tool must start with a double-click on a machine without administrator rights.
+  step. The tool must start with a double-click on a machine without administrator rights. This binds
+  the tool, not its development: the tools that check it (`requirements-dev.txt`) are installed by CI
+  and by contributors who want them, never needed to run it, and the plain checks below still run
+  without them.
 - **Portable across Windows / Linux / macOS.** Every file is read and written as **explicit UTF-8**
   (`encoding="utf-8"`): the Windows default is cp1252. File replacements in the local copy must tolerate
   Windows' `PermissionError` (see `REPLACE_ATTEMPTS`).
@@ -71,6 +74,15 @@ python3 -m unittest
 ```
 
 The tests (`tests/`, `unittest` only, no network) cover the configuration, the local copy and the
-server's security checks: every new route or write adds its own. The page has no automated tests: run it
-(`cd src && JIRA_PAT=… python3 -m camelopard --port 9101`) and check the board, the detail panel and the
-`/stats` counter in the browser.
+server's security checks: every new route or write adds its own.
+
+The page is driven in a real browser by `tests/e2e`, against the demo's fake Jira: a change to what the
+user sees or presses adds or updates a scenario there. They need Playwright, skipped without it:
+
+```bash
+python3 -m pip install -r requirements-dev.txt && python3 -m playwright install chromium
+python3 -m unittest tests.e2e.test_board
+```
+
+Also run the page (`python3 demo/run.py`) and check the board, the detail panel and the `/stats` counter
+by eye: the scenarios cover the main paths, not the look.

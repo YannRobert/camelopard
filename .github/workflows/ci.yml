@@ -32,3 +32,21 @@ jobs:
         run: python -m compileall -q src tests demo
       - name: Test
         run: python -m unittest -v
+
+  # The page in a real browser, against the demo's fake Jira (tests/e2e).
+  browser:
+    runs-on: ubuntu-latest
+    env:
+      # A missing Playwright fails the job instead of skipping the tests.
+      CAMELOPARD_E2E: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install the development tools
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python -m playwright install --with-deps chromium
+      - name: Browser tests
+        run: python -m unittest -v tests.e2e.test_board
