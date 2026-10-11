@@ -387,9 +387,9 @@ try {
   }
   .icon-btn.clear:not(:disabled) { color: var(--accent); }
   .icon-btn.clear:disabled { opacity: 0.35; cursor: default; background: none; }
-  .icon-btn.notify, .icon-btn.standup-btn, #theme { display: inline-flex; padding: 0.3rem 0.4rem; }
+  .icon-btn.notify, .icon-btn.standup-btn, #theme, #board-shortcuts-btn { display: inline-flex; padding: 0.3rem 0.4rem; }
   .icon-btn.standup-btn[aria-pressed="true"] { color: var(--accent-fg); background: var(--accent); }
-  .icon-btn.notify svg, .icon-btn.standup-btn svg, #theme svg {
+  .icon-btn.notify svg, .icon-btn.standup-btn svg, #theme svg, #board-shortcuts-btn svg {
     width: 1.2rem; height: 1.2rem; fill: none; stroke: currentColor; stroke-width: 1.8;
     stroke-linecap: round; stroke-linejoin: round;
   }
@@ -582,7 +582,9 @@ try {
   aside .bar .key { font-weight: 600; }
   /* The keys, on demand: always written out, they took two lines of the bar on the side. */
   aside .bar .shortcuts { position: relative; }
-  .shortcuts-panel { width: max-content; max-width: calc(100vw - 2rem); }
+  /* white-space: the header's controls never wrap, their panel's text does when the window is narrow. */
+  .shortcuts-panel { width: max-content; max-width: calc(100vw - 2rem); white-space: normal; }
+  header .shortcuts { position: relative; }
   .shortcuts-panel table { font-family: inherit; }
   .shortcuts-panel td { font-family: inherit; padding: 0.25rem 0.4rem; vertical-align: baseline; }
   .shortcuts-panel td:first-child { white-space: nowrap; }
@@ -788,6 +790,26 @@ try {
       <div class="freshness" id="freshness" hidden aria-hidden="true"></div>
     </div>
     <a class="btn" id="open-jira" target="_blank" rel="noopener">Open in Jira</a>
+    <div class="shortcuts">
+      <button type="button" class="icon-btn" id="board-shortcuts-btn" aria-expanded="false" aria-controls="board-shortcuts-panel" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M8 14h8"/></svg></button>
+      <div class="load-panel shortcuts-panel" id="board-shortcuts-panel" hidden>
+        <h4>Keyboard, on the board</h4>
+        <table>
+          <tr><td><kbd>a</kbd>…<kbd>z</kbd></td><td>Search: typing a letter is enough</td></tr>
+          <tr><td><kbd>/</kbd></td><td>Search</td></tr>
+          <tr id="views-shortcut"><td><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd>…</td><td>Board views</td></tr>
+          <tr><td><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd></td><td>From a card: the next card</td></tr>
+          <tr><td><kbd>Enter</kbd></td><td>Open the card's detail (its own keys: <kbd>?</kbd> there)</td></tr>
+          <tr><td><kbd>J</kbd></td><td>Open the card in Jira</td></tr>
+          <tr><td><kbd>Ctrl</kbd> + click</td><td>Pick cards (<kbd>Shift</kbd> + click: a range)</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>C</kbd></td><td>Copy the picked issues</td></tr>
+          <tr><td><kbd>Shift</kbd> <kbd>S</kbd></td><td>Stand-up</td></tr>
+          <tr><td><kbd>N</kbd></td><td>Stand-up: next speaker</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>Clear the picked cards, then end the stand-up</td></tr>
+          <tr><td><kbd>?</kbd></td><td>This list</td></tr>
+        </table>
+      </div>
+    </div>
     <button type="button" class="icon-btn" id="theme"></button>
   </div>
 </header>
@@ -818,7 +840,7 @@ try {
     <div class="shortcuts">
       <button type="button" class="icon-btn" id="shortcuts-btn" aria-expanded="false" aria-controls="shortcuts-panel" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M8 14h8"/></svg></button>
       <div class="load-panel shortcuts-panel" id="shortcuts-panel" hidden>
-        <h4>Keyboard</h4>
+        <h4>Keyboard, in the detail</h4>
         <table>
           <tr><td><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd></td><td>From a card: the next issue. In the detail: scroll it</td></tr>
           <tr><td><kbd>Enter</kbd></td><td>Open the card's detail</td></tr>
@@ -829,8 +851,6 @@ try {
           <tr><td><kbd>A</kbd></td><td>Change the assignee</td></tr>
           <tr><td><kbd>L</kbd></td><td>Detail on the side or at the bottom</td></tr>
           <tr><td><kbd>M</kbd></td><td>Maximize the detail</td></tr>
-          <tr><td><kbd>/</kbd></td><td>Search (on the board, typing a letter is enough)</td></tr>
-          <tr><td><kbd>Shift</kbd> <kbd>S</kbd></td><td>Stand-up</td></tr>
           <tr><td><kbd>?</kbd></td><td>This list</td></tr>
         </table>
       </div>
@@ -2353,15 +2373,40 @@ function toggleAboutPanel(open) {
 
 $("about").addEventListener("click", () => toggleAboutPanel($("about-panel").hidden));
 
-function toggleShortcuts(open) {
-  $("shortcuts-panel").hidden = !open;
-  $("shortcuts-btn").setAttribute("aria-expanded", String(open));
+// Two lists, each the keys of where it opens: the board's in the header, the detail's in the detail.
+const SHORTCUT_LISTS = [["board-shortcuts-panel", "board-shortcuts-btn"], ["shortcuts-panel", "shortcuts-btn"]];
+
+function toggleShortcuts(
+  panelId,
+  open
+) {
+  const button = $(SHORTCUT_LISTS.find(([id]) => id === panelId)[1]);
+  $(panelId).hidden = !open;
+  button.setAttribute("aria-expanded", String(open));
+  if (open && panelId === "board-shortcuts-panel") {
+    alignPopover(
+      $(panelId),
+      button
+    );
+  }
 }
 
-$("shortcuts-btn").addEventListener("click", () => toggleShortcuts($("shortcuts-panel").hidden));
+const openShortcuts = () => SHORTCUT_LISTS.map(([id]) => id).find(id => !$(id).hidden);
+
+for (const [panelId, buttonId] of SHORTCUT_LISTS) $(buttonId).addEventListener("click", () => toggleShortcuts(
+  panelId,
+  $(panelId).hidden
+));
 document.addEventListener("click", e => {
-  if (!$("shortcuts-panel").hidden && !e.target.closest(".shortcuts")) toggleShortcuts(false);
+  for (const [panelId] of SHORTCUT_LISTS) {
+    if (!$(panelId).hidden && !e.target.closest(".shortcuts")?.contains($(panelId))) toggleShortcuts(
+      panelId,
+      false
+    );
+  }
 });
+// Without board views, no keys for them.
+$("views-shortcut").hidden = !VIEWS.length;
 
 function compactDuration(ms) {
   const minutes = Math.max(0, Math.floor(ms / 60000));
@@ -4501,8 +4546,11 @@ document.addEventListener("keydown", e => {
     return;
   }
   // Closed where the focus stays: opened with "?" from a card, the arrows go on from that card.
-  if (e.key === "Escape" && !$("shortcuts-panel").hidden) {
-    toggleShortcuts(false);
+  if (e.key === "Escape" && openShortcuts()) {
+    toggleShortcuts(
+      openShortcuts(),
+      false
+    );
     return;
   }
   if (e.key === "Escape" && !$("about-panel").hidden) {
@@ -4544,8 +4592,18 @@ document.addEventListener("keydown", e => {
     return;
   }
   if (typing) return;
-  if (e.key === "?" && state.openKey) {
-    toggleShortcuts($("shortcuts-panel").hidden);
+  if (e.key === "?") {
+    // The list of where the keys act: the detail's while it is open, the board's otherwise.
+    const list = state.openKey ? "shortcuts-panel" : "board-shortcuts-panel";
+    const wasOpen = !$(list).hidden;
+    for (const [panelId] of SHORTCUT_LISTS) toggleShortcuts(
+      panelId,
+      false
+    );
+    toggleShortcuts(
+      list,
+      !wasOpen
+    );
   } else if (e.key === "/") {
     e.preventDefault();
     $("q")?.focus();
