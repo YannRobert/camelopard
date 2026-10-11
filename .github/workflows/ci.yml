@@ -2,8 +2,11 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # The repository's default branch: there is no main.
+    branches: [develop]
   pull_request:
+  # Run by hand from the Actions tab, without pushing anything.
+  workflow_dispatch:
 
 permissions:
   contents: read
