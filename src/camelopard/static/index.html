@@ -1538,7 +1538,7 @@ function renderFilters() {
   const items = shown.map(f => ({
     person: isPersonFilter(f.id),
     html: `<button type="button" class="qf${isMyFilter(f) ? " me" : ""}" data-qf="${f.id}" aria-pressed="${state.quick.has(f.id)}" aria-busy="${state.filtersLoading.has(f.id)}" ` +
-      `title="${isMyFilter(f) ? "You · " : ""}${escapeHtml(f.description || f.query)}">${isMyFilter(f) ? myFilterLabel(f) : escapeHtml(f.name)}</button>`,
+      `title="${escapeHtml(f.description || f.query)}">${isMyFilter(f) ? myFilterLabel(f) : escapeHtml(f.name)}</button>`,
   }));
   if (people) items.splice(shown.some(isMyFilter) ? 1 : 0, 0, { person: true, html: people });
   // The popover holds the previous rendering's filters: rebuilt from scratch, like the line.
