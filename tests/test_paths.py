@@ -1,3 +1,5 @@
+import ntpath
+import posixpath
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -12,10 +14,12 @@ class PathsTest(unittest.TestCase):
             platform,
             environ
     ):
+        # The simulated system's path rules, not the machine's: since Python 3.13, Windows no longer counts
+        # "/xdg/config" (no drive) as absolute, which Linux does.
         return mock.patch.multiple(
             "camelopard.paths",
             sys=mock.Mock(platform=platform),
-            os=mock.Mock(environ=environ, path=paths.os.path)
+            os=mock.Mock(environ=environ, path=ntpath if platform == "win32" else posixpath)
         )
 
     def test_linux_follows_xdg(self):
