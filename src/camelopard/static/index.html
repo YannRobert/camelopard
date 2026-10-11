@@ -92,7 +92,7 @@ try {
   }
   a { color: var(--link); text-decoration: none; }
   a:hover { text-decoration: underline; }
-  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  :focus-visible, .card.focus-return:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
   button { font: inherit; color: inherit; }
 
   /* Two rows of fixed height, whatever the board: the header (which board, its data) and the toolbar (which
@@ -2092,6 +2092,9 @@ function renderBoard() {
   // Columns outside the view: neither rendered nor laid out, not just hidden with CSS.
   const shown = viewColumns(board, state.view).map(index => ({ column: board.columns[index], index }));
   $("board").style.setProperty("--cols", shown.length);
+  // Rebuilding the board drops the focus: a card that had it gets it back, so a refresh does not take the
+  // keyboard away from someone moving through the cards.
+  const focused = document.activeElement?.closest?.("#board .card[data-key]")?.dataset.key;
   $("board").innerHTML = shown.map(({ column, index }) => {
     const issues = columns[index];
     const points = issues.reduce((sum, i) => sum + (i.points ?? 0), 0);
@@ -2099,6 +2102,7 @@ function renderBoard() {
       `<span class="n" title="${issues.length} issue(s), ${formatPoints(points)} point(s)">${issues.length}${points ? ` · ${formatPoints(points)} pts` : ""}</span></h2>` +
       `<div class="cards">${issues.length ? issues.map(i => card(i, board)).join("") : `<div class="empty-col">—</div>`}</div></section>`;
   }).join("");
+  if (focused) document.querySelector(`#board .card[data-key="${CSS.escape(focused)}"]`)?.focus({ preventScroll: true });
   // The number of columns changes with the view, without the board changing size.
   fitLanes();
 }
@@ -3163,7 +3167,17 @@ function closeDetail() {
 function closeDetailToCard() {
   const key = state.openKey;
   closeDetail();
-  if (key) document.querySelector(`.card[data-key="${CSS.escape(key)}"]`)?.focus({ preventScroll: true });
+  const card = key && document.querySelector(`.card[data-key="${CSS.escape(key)}"]`);
+  if (!card) return;
+  // Ringed even when the panel was opened with the mouse, where the browser would not show the focus: the
+  // next keys start from that card, so it must be seen.
+  card.classList.add("focus-return");
+  card.addEventListener(
+    "blur",
+    () => card.classList.remove("focus-return"),
+    { once: true }
+  );
+  card.focus({ preventScroll: true });
 }
 
 function renderDetail(
@@ -3399,8 +3413,29 @@ function safeUrl(value) {
 
 // Keyboard navigation in the panel: ↑ ↓ within the column, ← → to the neighbouring column.
 function moveSelection(key) {
-  const current = document.querySelector(`.card[data-key="${CSS.escape(state.openKey)}"]`);
-  if (!current) return;
+  const target = neighbourCard(
+    document.querySelector(`.card[data-key="${CSS.escape(state.openKey)}"]`),
+    key
+  );
+  if (target) openDetail(target.dataset.key);
+}
+
+// The same moves with the panel closed (after Escape, say): the focus goes from card to card, Enter opens one.
+function moveFocus(
+  current,
+  key
+) {
+  neighbourCard(
+    current,
+    key
+  )?.focus();
+}
+
+function neighbourCard(
+  current,
+  key
+) {
+  if (!current) return null;
   let target = null;
   if (key === "ArrowUp" || key === "ArrowDown") {
     target = key === "ArrowUp" ? current.previousElementSibling : current.nextElementSibling;
@@ -3412,7 +3447,7 @@ function moveSelection(key) {
     const cards = next ? [...next.querySelectorAll(".card")] : [];
     target = cards[Math.min(index, cards.length - 1)];
   }
-  if (target?.classList.contains("card")) openDetail(target.dataset.key);
+  return target?.classList.contains("card") ? target : null;
 }
 
 // ---------- URL ----------
@@ -4464,6 +4499,12 @@ document.addEventListener("keydown", e => {
   } else if (state.openKey && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
     e.preventDefault();
     moveSelection(e.key);
+  } else if (e.target.matches?.("#board .card") && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+    e.preventDefault();
+    moveFocus(
+      e.target,
+      e.key
+    );
   }
 });
 
