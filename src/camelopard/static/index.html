@@ -344,7 +344,8 @@ try {
     font: inherit; font-size: 0.8rem; color: var(--link); background: transparent; border: 1px dashed var(--border);
     border-radius: 3px; padding: 0.15rem 0.3rem; cursor: pointer; max-width: 12rem;
   }
-  .filters .people { display: inline-flex; align-items: center; gap: 0.35rem; }
+  /* Between the user's own button and "Unassigned", which do the same job: their size, not the lists'. */
+  .filters .people { display: inline-flex; align-items: center; gap: 0.35rem; font-size: inherit; }
   .filters .people svg { width: 0.7rem; height: 0.7rem; fill: none; stroke: currentColor; stroke-width: 3; }
   .filters .people .avatar, .people-menu .avatar { width: 1.15rem; height: 1.15rem; font-size: 0.5rem; box-shadow: none; }
   /* Fixed, not inside the filters: the line hides what overflows it, and the popover moves its children. */
