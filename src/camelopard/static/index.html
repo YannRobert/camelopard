@@ -1667,7 +1667,9 @@ function openPeopleMenu(open) {
 
 function renderPeopleMenu() {
   const { options, active } = state.peopleMenu;
-  const anyOn = options.some(p => p.id !== null && state.quick.has(p.id));
+  // "Everyone" means no filter on the assignee at all: the user's own button or "Unassigned" beside the list
+  // are filters on the assignee too, and picking "Everyone" switches them off.
+  const anyOn = [...state.quick].some(isPersonFilter);
   $("people-menu").innerHTML = options.map((p, index) => {
     const selected = p.id === null ? !anyOn : state.quick.has(p.id);
     const content = p.id === null
