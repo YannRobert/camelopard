@@ -3141,6 +3141,14 @@ function closeDetail() {
   for (const el of document.querySelectorAll(".card.selected")) el.classList.remove("selected");
 }
 
+// Closed by the user, the panel hands the keyboard back to the card it showed: without it, focus falls back
+// to the page's start and the next Tab begins from the header again.
+function closeDetailToCard() {
+  const key = state.openKey;
+  closeDetail();
+  if (key) document.querySelector(`.card[data-key="${CSS.escape(key)}"]`)?.focus({ preventScroll: true });
+}
+
 function renderDetail(
   key,
   { syncing = false, syncError = null }
@@ -4384,10 +4392,12 @@ document.addEventListener("keydown", e => {
   }
   if (e.key === "Escape" && !$("load-panel").hidden) {
     toggleLoadPanel(false);
+    $("load").focus();
     return;
   }
   if (e.key === "Escape" && !$("about-panel").hidden) {
     toggleAboutPanel(false);
+    $("about").focus();
     return;
   }
   if (e.key === "Escape" && state.filtersOpen) {
@@ -4397,6 +4407,7 @@ document.addEventListener("keydown", e => {
   }
   if (e.key === "Escape" && !$("activity-panel").hidden) {
     toggleActivityPanel(false);
+    $("activity-btn").focus();
     return;
   }
   const typing = e.target.matches?.("input, select, textarea");
@@ -4407,7 +4418,7 @@ document.addEventListener("keydown", e => {
   if (e.key === "Escape" && !typing && clearPicked()) return;
   if (e.key === "Escape") {
     if (typing && e.target.id === "q" && state.q) return;
-    if (!$("panel").hidden) closeDetail();
+    if (!$("panel").hidden) closeDetailToCard();
     else if (typing) e.target.blur();
     else if (state.standup) endStandup();
     return;
@@ -4483,7 +4494,7 @@ function renderThemeButton() {
   $("theme").title = light ? "Switch to the dark theme" : "Switch to the light theme";
   $("theme").setAttribute("aria-label", $("theme").title);
 }
-$("panel-close").addEventListener("click", closeDetail);
+$("panel-close").addEventListener("click", closeDetailToCard);
 // At the bottom, each detail column scrolls on its own: scrolling is captured on all of them.
 const panelScrollers = () => [$("panel-content"), ...$("panel-content").children];
 $("panel-content").addEventListener("scroll", () => {
