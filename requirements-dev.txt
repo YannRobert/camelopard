@@ -1,3 +1,4 @@
 # Development tools only, never needed to run Camelopard (which uses the standard library alone).
 # Pinned so that a pull request is checked with the same versions as everything before it.
+coverage==7.16.2
 playwright==1.63.0

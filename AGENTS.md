@@ -84,5 +84,8 @@ python3 -m pip install -r requirements-dev.txt && python3 -m playwright install 
 python3 -m unittest tests.e2e.test_board
 ```
 
+CI also measures how much of the server the tests run (`coverage`, same file) and fails under 80 %: a new
+route or branch comes with the tests that run it.
+
 Also run the page (`python3 demo/run.py`) and check the board, the detail panel and the `/stats` counter
 by eye: the scenarios cover the main paths, not the look.

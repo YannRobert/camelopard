@@ -33,6 +33,26 @@ jobs:
       - name: Test
         run: python -m unittest -v
 
+  # Share of the server's lines the tests run: shown on the run's summary, and a floor a change may not
+  # lower the total under.
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      # Coverage alone, at its pinned version: with Playwright but no browser, the browser tests would fail
+      # here instead of being skipped.
+      - name: Install coverage
+        run: python -m pip install "$(grep '^coverage==' requirements-dev.txt)"
+      - name: Measure
+        run: python -m coverage run --source=src/camelopard -m unittest
+      - name: Report
+        run: |
+          python -m coverage report --format=markdown --sort=cover >> "$GITHUB_STEP_SUMMARY"
+          python -m coverage report --fail-under=80
+
   # The page in a real browser, against the demo's fake Jira (tests/e2e).
   browser:
     runs-on: ubuntu-latest
