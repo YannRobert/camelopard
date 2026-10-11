@@ -1,6 +1,6 @@
 # Camelopard
 
-[![CI](https://github.com/YannRobert/jirafe/actions/workflows/ci.yml/badge.svg)](https://github.com/YannRobert/jirafe/actions/workflows/ci.yml)
+[![CI](https://github.com/YannRobert/camelopard/actions/workflows/ci.yml/badge.svg)](https://github.com/YannRobert/camelopard/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **A blazing-fast alternative to the Jira web UI for your sprint board.** It shows the board of a
