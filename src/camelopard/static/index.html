@@ -804,7 +804,7 @@ try {
   <div class="grip" id="panel-grip" title="Drag to resize"></div>
   <div class="bar">
     <a class="key" id="panel-key" target="_blank" rel="noopener"></a>
-    <span class="nav" title="Arrows: next issue from a card, scroll in the detail · D C H: description, comments, history · Tab: into the detail · Esc: back to the card, then close · Enter: open in Jira · L: side or bottom · M: maximize">↑ ↓ ← → issues · D C H sections · Tab Esc in/out · Enter Jira · L layout · M maximize</span>
+    <span class="nav" title="Arrows: next issue from a card, scroll in the detail · D C H: description, comments, history · Tab: into the detail · Esc: back to the card, then close · Enter: open a card · J: open in Jira · L: side or bottom · M: maximize">↑ ↓ ← → issues · D C H sections · Tab Esc in/out · J Jira · L layout · M maximize</span>
     <span class="spacer"></span>
     <span class="sync" id="panel-sync"></span>
     <button type="button" class="icon-btn" id="panel-dock"></button>
@@ -3517,8 +3517,8 @@ document.addEventListener("click", e => {
   const cardEl = e.target.closest(".card");
   // As in a file list: Ctrl + click (Cmd on a Mac, where Ctrl + click is the context menu) picks a card,
   // Shift + click the cards between the last one clicked and this one (added to the others with Ctrl too).
-  // Neither opens Jira, as they would on a link: leaving the board for Jira must be deliberate (Enter, the
-  // key in the detail, or Alt + middle click).
+  // Neither opens Jira, as they would on a link: leaving the board for Jira must be deliberate (J, the key
+  // in the detail, or Alt + middle click).
   if (cardEl && e.button === 0 && e.shiftKey) {
     e.preventDefault();
     pickRange(
@@ -4519,10 +4519,14 @@ document.addEventListener("keydown", e => {
     openPicker();
   } else if (!e.ctrlKey && !e.metaKey && !e.altKey && VIEWS.some(v => v.key === e.key)) {
     setView(VIEWS.find(v => v.key === e.key).id);
-  } else if (state.openKey && e.key === "Enter" && !e.target.closest?.("button, a:not(.card)")) {
-    // Open preview: Enter goes deeper, the selected issue opens in full in Jira (new tab).
+  } else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === "j" && (state.openKey || e.target.matches?.("#board .card"))) {
+    // J for Jira: the issue in the detail, or the card with the focus, in full in Jira (new tab). Not Enter,
+    // pressed without a thought: leaving for Jira must be deliberate.
+    window.open(browseUrl(state.openKey ?? e.target.dataset.key), "_blank", "noopener");
+  } else if (e.key === "Enter" && e.target.matches?.("#board .card.selected")) {
+    // Enter opens a card's detail (the card's own click); on the card already shown, that click would close
+    // it: nothing happens instead.
     e.preventDefault();
-    window.open(browseUrl(state.openKey), "_blank", "noopener");
   } else if (state.openKey && !e.target.closest?.("#panel") && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
     // From the board, the arrows go to the next issue; in the detail (a click or Tab there) they scroll it
     // instead, so reading never changes the issue by accident. Escape or a click on a card gives them back.
