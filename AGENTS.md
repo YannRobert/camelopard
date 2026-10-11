@@ -91,7 +91,7 @@ The pure logic of the page is tested with Node's built-in runner, nothing to ins
 function that needs neither the DOM nor the page's state goes to `logic.mjs`, with its tests.
 
 ```bash
-node --test tests/js/
+cd tests/js && node --test
 ```
 
 CI also measures how much of the server the tests run (`coverage`, same file) and fails under 80 %: a new

@@ -33,7 +33,7 @@ python3 -m compileall -q src tests demo
 python3 -m unittest
 ```
 
-With Node installed, the page's pure logic is tested too: `node --test tests/js/`.
+With Node installed, the page's pure logic is tested too: `cd tests/js && node --test`.
 
 The tests never call JIRA. Those of the page (`tests/e2e`) run in a real browser and are skipped unless
 the development tools are installed, as CI does on every pull request:

@@ -1,4 +1,5 @@
-// The page's pure logic (src/camelopard/static/logic.mjs), with Node's built-in runner: node --test tests/js
+// The page's pure logic (src/camelopard/static/logic.mjs), with Node's built-in runner: cd tests/js && node --test
+// (run from here, it finds the *.test.mjs files itself: a folder given as argument fails on Node 22).
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 

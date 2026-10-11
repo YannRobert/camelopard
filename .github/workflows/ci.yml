@@ -41,8 +41,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      # From the folder, the runner finds the *.test.mjs files itself: Node 22 no longer takes a folder.
       - name: Test
-        run: node --test tests/js/
+        working-directory: tests/js
+        run: node --test
 
   # Share of the server's lines the tests run: shown on the run's summary, and a floor a change may not
   # lower the total under.
