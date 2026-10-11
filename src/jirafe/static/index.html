@@ -43,6 +43,9 @@ try {
     --panel-shadow: -8px 0 32px -8px rgba(0, 0, 0, .6);
     --panel-shadow-left: 8px 0 32px -8px rgba(0, 0, 0, .6);
     --recent: #f5b84a;
+    /* Raised above the cards it covers: lighter than them in the dark theme, white in the light one. */
+    --popover: #463f36;
+    --popover-shadow: 0 12px 32px rgba(0, 0, 0, .6);
   }
   :root[data-theme="light"] {
     color-scheme: light;
@@ -67,6 +70,8 @@ try {
     --panel-shadow: -8px 0 32px -8px rgba(60, 40, 20, .3);
     --panel-shadow-left: 8px 0 32px -8px rgba(60, 40, 20, .3);
     --recent: #d9860f;
+    --popover: #ffffff;
+    --popover-shadow: 0 12px 32px rgba(60, 40, 20, .28);
   }
   * { box-sizing: border-box; }
   /* The base size follows the screen width: the board stays readable from a laptop to a wall screen. */
@@ -259,8 +264,8 @@ try {
   .toolbar { position: relative; }
   .filters.filters-more {
     position: absolute; top: calc(100% - 0.4rem); right: 1.2rem; z-index: 30; flex-wrap: wrap; overflow: visible;
-    white-space: normal; row-gap: 0.4rem; padding: 0.6rem 0.7rem; border: 1px solid var(--border); border-radius: 0.6rem;
-    background: var(--column); box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+    white-space: normal; row-gap: 0.4rem; padding: 0.6rem 0.7rem; border: 1px solid var(--chip); border-radius: 0.6rem;
+    background: var(--popover); box-shadow: var(--popover-shadow);
   }
   .filters.filters-more[hidden] { display: none; }
   /* In the popover, a separator starts a new line instead of standing between two buttons. */
@@ -844,6 +849,8 @@ const PEOPLE_SEARCH_MIN_CHARS = 2;
 const PEOPLE_SEARCH_SIZE = 20;
 // Labels shown upfront as buttons; the others go in the drop-down list.
 const TOP_LABELS = 5;
+// Up to this many labels in the sprint, all of them are buttons: a list would hide too few to be worth a click.
+const LABELS_ALL_AS_BUTTONS = 15;
 // A label carried by more than this share of the sprint filters too little to earn a button by default.
 const BROAD_LABEL_SHARE = 0.4;
 // The user's label usage: each click adds 1 to a score that loses half its value every
@@ -1559,10 +1566,13 @@ function labelsHtml(board) {
   for (const id of state.labels) if (!labels.some(label => label.id === id)) labels.push({ id, count: 0, name: id });
   if (!labels.length) return "";
   const byId = new Map(labels.map(label => [label.id, label]));
-  const top = buttonLabels(
-    byId,
-    board
-  );
+  // All shown: in alphabetical order, which no count or click changes, so a button never moves.
+  const top = labels.length <= LABELS_ALL_AS_BUTTONS
+    ? labels.map(label => label.id).sort((a, b) => byId.get(a).name.localeCompare(byId.get(b).name, undefined, { sensitivity: "base" }))
+    : buttonLabels(
+      byId,
+      board
+    );
   const shown = top.map(id => byId.get(id));
   const others = labels.filter(label => !top.includes(label.id));
   return `<span class="label">Labels</span>` +
