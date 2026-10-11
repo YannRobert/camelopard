@@ -3,26 +3,26 @@
 [![CI](https://github.com/YannRobert/jirafe/actions/workflows/ci.yml/badge.svg)](https://github.com/YannRobert/jirafe/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**A blazing-fast alternative to the Jira web UI for your sprint board.** Jirafe shows the board of a
+**A blazing-fast alternative to the Jira web UI for your sprint board.** It shows the board of a
 Jira Server / Data Center sprint — columns, issues, epics, and a detail panel with description, comments
 and history — and every click answers instantly.
 
-**How it works.** Jirafe is a small proxy that runs on your machine (Python, standard library only). It
+**How it works.** It is a small proxy that runs on your machine (Python, standard library only). It
 keeps a local cache of the Jira data it shows and refreshes it regularly in the background, so the page
 reads from the cache instead of waiting for Jira. Navigation is instant, without trading away freshness:
 the board and open issues are kept up to date without you having to press F5.
 
-**Mostly for reading, with a few edits.** Jirafe was designed for consulting the board, but it can
+**Mostly for reading, with a few edits.** It was designed for consulting the board, but it can
 already move issues by dragging a card by one of its grips (⠿, top left and bottom right): within its column to reorder it, or to another
 column to change its status. It can also change an issue's assignee from the detail panel (click the
 assignee, or press `A`).
 
 **Moving an issue where the workflow does not lead directly.** When the workflow only reaches a status
 through others (A → B → C → D, or from C back to B through D and A), dropping the card in the target
-column is enough: Jirafe finds the shortest path, asks for confirmation, and applies the transitions one
+column is enough: it finds the shortest path, asks for confirmation, and applies the transitions one
 after the other. A column holding several statuses leads to the first one of the board's configuration that a
 path reaches. If Jira refuses one of them (a required field, a condition), the issue is brought back to
-its starting status when the workflow allows it. Jira only shows a workflow to its administrators: Jirafe
+its starting status when the workflow allows it. Jira only shows a workflow to its administrators: the tool
 learns it from the transitions Jira offers for the board's issues and from the status changes in their
 history, and keeps it in the local copy. A column no known path leads to refuses the card.
 
@@ -38,7 +38,7 @@ issues no known path can move, left as is).
 python3 demo/run.py
 ```
 
-This opens Jirafe on a fictional board (an imaginary online bookshop and its team), served by a fake Jira
+This opens a fictional board (an imaginary online bookshop and its team), served by a fake Jira
 that runs on your machine: no Jira, no token, no configuration. Its history is placed relative to the
 moment you start it, and colleagues keep moving issues and commenting while it runs, so that the live
 refresh, the stand-up and the notifications have something to show. Moves, ranking and assignments work;
@@ -47,7 +47,7 @@ nothing is kept once it stops. `python3 demo/run.py --help` lists the options an
 ## Requirements
 
 - **Python 3.8+** (nothing to install).
-- **Jira Server or Data Center** (Jirafe relies on the board's `greenhopper` API, which Jira Cloud lacks).
+- **Jira Server or Data Center** (the tool relies on the board's `greenhopper` API, which Jira Cloud lacks).
 - A **Jira personal access token** in the `JIRA_PAT` environment variable
   (Jira: avatar > Profile > Personal Access Tokens > Create token).
 
@@ -63,18 +63,16 @@ Copy [`jirafe.example.json`](jirafe.example.json) to the user configuration dire
 
 Creating it takes a few minutes with a text editor:
 
-1. **Copy the template** from the repository root:
-   - Linux: `mkdir -p ~/.config/jirafe && cp jirafe.example.json ~/.config/jirafe/config.json`
-   - macOS: `mkdir -p ~/Library/Application\ Support/jirafe && cp jirafe.example.json ~/Library/Application\ Support/jirafe/config.json`
-   - Windows (`cmd`): `mkdir "%APPDATA%\jirafe"` then `copy jirafe.example.json "%APPDATA%\jirafe\config.json"`
+1. **Copy the template** from the repository root to the file of the table above, creating its directory
+   first. On Linux: `mkdir -p ~/.config/jirafe && cp jirafe.example.json ~/.config/jirafe/config.json`
 2. **`jiraHost`**: the address of Jira, as in your browser before `/browse/…` or `/secure/…`.
 3. **`boardId`**: open the board in Jira; it is the number after `rapidView=` in the address bar.
 4. **`fields`**: while logged in to Jira, open `<jiraHost>/rest/api/2/field` in the browser. It lists
    every field as JSON: search (Ctrl+F) for the name shown on an issue, for instance `Story Points`, and
    copy its `"id"` (`customfield_…`). Remove the roles you do not need; `"fields": {}` is valid.
 5. **`views`** (optional): see below.
-6. **Start Jirafe.** If the file is missing, Jirafe prints the path it expects; if it is invalid, it names
-   the faulty key and stops.
+6. **Start the server** (see [Running](#running)). If the file is missing, it prints the path it expects;
+   if it is invalid, it names the faulty key and stops.
 
 ```json
 {
@@ -135,26 +133,26 @@ cd src && python3 -m jirafe --open
 
 To keep the server running after the terminal closes (Linux / macOS): `./start.sh` starts it in the
 background with `nohup` (same options as `open.sh`, browser not opened), `./stop.sh` stops it. The pid and
-the log (`jirafe.log`) sit next to the local copy, in `~/.cache/jirafe` (`~/Library/Caches/jirafe` on macOS).
+the log sit in the [local copy](#local-copy)'s directory.
 
 Then open <http://localhost:8766>.
 
 ### Starting with the computer
 
-Nothing here needs administrator rights: Jirafe runs as you.
+Nothing here needs administrator rights: the server runs as you.
 
 - **Linux**: a systemd user service. The token goes in a file only you can read, since a service does not
-  read `~/.profile`: `install -m 600 /dev/null ~/.config/jirafe/jirafe.env`, then write
-  `JIRA_PAT=the-token` in it. Then create `~/.config/systemd/user/jirafe.service` (adapt the path to the
-  repository) and run `systemctl --user enable --now jirafe`:
+  read `~/.profile`: `install -m 600 /dev/null ~/.config/sprint-board.env`, then write
+  `JIRA_PAT=the-token` in it. Then create `~/.config/systemd/user/sprint-board.service` (adapt the path to the
+  repository) and run `systemctl --user enable --now sprint-board`:
 
   ```ini
   [Unit]
-  Description=Jirafe, the sprint board
+  Description=Sprint board
 
   [Service]
   WorkingDirectory=%h/jirafe/src
-  EnvironmentFile=%h/.config/jirafe/jirafe.env
+  EnvironmentFile=%h/.config/sprint-board.env
   ExecStart=/usr/bin/python3 -u -m jirafe --quiet
   Restart=on-failure
   RestartSec=10
@@ -165,20 +163,20 @@ Nothing here needs administrator rights: Jirafe runs as you.
   ```
 
   It starts with your session (`loginctl enable-linger`, when allowed, starts it at boot instead). Logs:
-  `journalctl --user -u jirafe`. While the service runs, use `systemctl --user stop|restart jirafe` rather
+  `journalctl --user -u sprint-board`. While the service runs, use `systemctl --user stop|restart sprint-board` rather
   than `start.sh` / `stop.sh`.
 - **WSL**: the same service, provided systemd is enabled (`systemd=true` under `[boot]` in
   `/etc/wsl.conf`): it starts with the distribution, at the first WSL window. To have WSL itself start at
   logon, and keep running once no WSL window is open, a script in the Windows startup folder (`Win+R`,
-  `shell:startup`), for instance `jirafe-wsl.vbs`, can start it hidden:
+  `shell:startup`), for instance `sprint-board.vbs`, can start it hidden:
 
   ```vbscript
-  CreateObject("WScript.Shell").Run "wsl.exe -d Ubuntu --exec sh -c ""XDG_RUNTIME_DIR=/run/user/$(id -u) systemctl --user start jirafe.service; exec sleep infinity""", 0, False
+  CreateObject("WScript.Shell").Run "wsl.exe -d Ubuntu --exec sh -c ""XDG_RUNTIME_DIR=/run/user/$(id -u) systemctl --user start sprint-board.service; exec sleep infinity""", 0, False
   ```
 
-- **macOS**: a LaunchAgent, `~/Library/LaunchAgents/jirafe.plist`, running `python3 -u -m jirafe --quiet`
+- **macOS**: a LaunchAgent, `~/Library/LaunchAgents/sprint-board.plist`, running `python3 -u -m jirafe --quiet`
   in the repository's `src` directory with `JIRA_PAT` in its `EnvironmentVariables`, and `RunAtLoad`
-  set; then `launchctl load ~/Library/LaunchAgents/jirafe.plist`. Keep the file `chmod 600`: it holds the token.
+  set; then `launchctl load ~/Library/LaunchAgents/sprint-board.plist`. Keep the file `chmod 600`: it holds the token.
 - **Windows**: a shortcut to `open.cmd` in the startup folder (`Win+R`, `shell:startup`); it also opens
   the browser.
 
@@ -285,7 +283,7 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 open.cmd, open.sh         Windows and Linux / macOS launchers
 start.sh, stop.sh         background server (Linux / macOS)
 jirafe.example.json       configuration template
-demo/                     fake Jira and fictional boards (scenarios/), to try Jirafe without Jira
+demo/                     fake Jira and fictional boards (scenarios/), to try it without Jira
 src/jirafe/
   app.py                  entry point: options, configuration, startup
   handler.py              HTTP routes and security checks
@@ -305,7 +303,7 @@ tests/                    unittest tests, no network
 
 - **Ideas, not implemented and not committed to:**
   - more edits from the page, such as adding a comment or editing the description;
-  - handing edits over to your own AI agent: rather than coding every possible change into Jirafe, the
+  - handing edits over to your own AI agent: rather than coding every possible change into the tool, the
     page would pass the request, written or spoken, to an agent that already has its own access to Jira
     (MCP server or REST API) and makes the change there.
 
