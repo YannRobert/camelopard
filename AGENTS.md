@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Instructions for a coding agent working on Jirafe. How the tool works is described in `README.md`; this
+Instructions for a coding agent working on this repository. How the tool works is described in `README.md`; this
 file lists what must be respected when changing it.
 
 ## Non-negotiable constraints
@@ -40,9 +40,9 @@ file lists what must be respected when changing it.
 - An extra custom field is added as a **role**: in `FIELD_ROLES`, in the page (through
   `custom(f, "role")`), and in the README roles table.
 - `demo/`: a fake Jira Server (`fakejira/`) serving a fictional board (one package per board in `scenarios/`,
-  each with its `dataset.py` and its Jirafe `config.json`), and `run.py`, which starts it with Jirafe pointed
-  at it. It serves only what Jirafe reads and writes: a new Jira read or write is added there too, and
-  `tests/test_demo.py` runs Jirafe's own client and local copy against it. The server knows nothing of a
+  each with its `dataset.py` and its `config.json`), and `run.py`, which starts it with the tool pointed at
+  it. It serves only what the tool reads and writes: a new Jira read or write is added there too, and
+  `tests/test_demo.py` runs the tool's own client and local copy against it. The server knows nothing of a
   board: what differs between scenarios goes in their dataset. Their data stays invented, never copied from a
   real instance, even anonymised.
 - The configuration and the local copy live **outside the repository**, at each system's usual location
