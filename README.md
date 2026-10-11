@@ -240,7 +240,7 @@ browser ──► http://localhost:8766 ──► Jira
   that changed. A change made elsewhere then reaches the open detail and the board within about 45 seconds.
   Opening an issue resyncs it from Jira only when neither its copy nor the last pass is recent: a pass
   that did not find it among the changed issues vouches for its copy.
-- **Since your last visit** (the bell in the header, which counts them): what others changed since
+- **Since your last visit** (the bell in the header, which counts the issues changed): what others changed since
   the page was last seen — column moves, assignments, comments — from the local copy's history. A visit
   ends after an hour unseen: a reload keeps the list, the next morning starts a new one.
 - **Stand-up** (`S`, or the people icon in the header): whoever speaks hands over to anyone, so the floor

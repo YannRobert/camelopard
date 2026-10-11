@@ -897,7 +897,7 @@ const THEME_KEY = "sprint-board.theme";
 const VIEW_KEY = "sprint-board.view";
 // Colleagues' quick filters shown as buttons up to this many; past it, they go in one list.
 const PEOPLE_AS_BUTTONS = 4;
-// Past this, the bell's count reads "99+": the exact number is in its title and panel.
+// Past this many issues, the bell's count reads "99+": the exact number is in its title and panel.
 const ACTIVITY_BADGE_MAX = 99;
 // Room kept between the last filter shown and the "+N more" button.
 const FILTERS_GAP_PX = 8;
@@ -2872,8 +2872,10 @@ function renderActivity() {
   const issues = othersActivity(state.activity);
   const open = !$("activity-panel").hidden;
   const count = issues.reduce((sum, issue) => sum + issue.changes.length, 0);
-  $("activity-count").hidden = !count;
-  $("activity-count").textContent = count > ACTIVITY_BADGE_MAX ? `${ACTIVITY_BADGE_MAX}+` : count;
+  // The bell counts issues, not changes: an issue moved three times and commented on twice is one thing to
+  // look at. A new change on an issue already listed does not raise it.
+  $("activity-count").hidden = !issues.length;
+  $("activity-count").textContent = issues.length > ACTIVITY_BADGE_MAX ? `${ACTIVITY_BADGE_MAX}+` : issues.length;
   $("activity-btn").title = (count
     ? `${count} change${count === 1 ? "" : "s"} by others on ${issues.length} issue${issues.length === 1 ? "" : "s"} since ${formatSince(state.visitSince)}`
     : `Nothing changed by others since ${formatSince(state.visitSince)}`) +
