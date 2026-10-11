@@ -1,4 +1,5 @@
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -173,6 +174,14 @@ class BoardTest(unittest.TestCase):
         self.page.keyboard.press("Escape")
         expect(self.page.locator("#panel")).to_be_hidden()
         self.assertIn("card", self.focused())
+
+    def test_the_detail_says_how_fresh_its_copy_is_and_keeps_counting(self):
+        self.cards().first.click()
+        age = self.page.locator("#panel-sync .sync-age")
+        expect(age).to_have_text(re.compile(r"^(< 5 s|\d+ s) ago$"))
+        # A copy checked 20 s earlier: the next tick, within 5 s, says so without a reload.
+        age.evaluate("element => { element.dataset.at = String(Date.now() - 20000); }")
+        expect(age).to_have_text(re.compile(r"^2[05] s ago$"), timeout=WAIT_MS)
 
     def test_enter_opens_the_detail_and_j_opens_jira(self):
         self.cards().first.click()

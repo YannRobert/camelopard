@@ -1502,6 +1502,15 @@ function renderFreshness() {
   ).join("");
 }
 
+// The detail's freshness on the board's scale ("< 5 s", "10 s"… then minutes), redrawn with it: "just now"
+// for anything under 45 s told nothing of a copy checked a second or forty seconds ago.
+const syncAge = at => `${compactDuration(Date.now() - at)} ago`;
+
+function renderSyncAge() {
+  const age = $("panel-sync").querySelector(".sync-age");
+  if (age) age.textContent = syncAge(Number(age.dataset.at));
+}
+
 function relative(at) {
   const seconds = Math.round((Date.now() - at) / 1000);
   if (seconds < 45) return "just now";
@@ -2344,7 +2353,7 @@ function renderDetail(
   $("panel-sync").innerHTML = syncing
     ? `<span class="muted">Syncing with Jira…</span>` + (entry ? ` <span class="muted">(copy from ${escapeHtml(formatDate(entry.syncedAt))})</span>` : "")
     : entry
-      ? `<button type="button" class="resync ${syncError ? "sync-failed" : "muted"}" title="${escapeHtml(syncError ? `${syncError} — click to retry` : "Click to resync from Jira")}">${syncError ? "Sync failed · local copy synced" : "Synced"} ${relative(checkedAt(entry))}</button>`
+      ? `<button type="button" class="resync ${syncError ? "sync-failed" : "muted"}" title="${escapeHtml(syncError ? `${syncError} — click to retry` : "Click to resync from Jira")}">${syncError ? "Sync failed · local copy synced" : "Synced"} <span class="sync-age" data-at="${checkedAt(entry)}">${syncAge(checkedAt(entry))}</span></button>`
       : syncError
         ? `<button type="button" class="resync sync-failed" title="${escapeHtml(`${syncError} — click to retry`)}">Sync failed · click to retry</button>`
         : "";
@@ -3997,7 +4006,13 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("storage", e => {
   if (e.key === SNAPSHOT_KEY) adoptNewerSnapshot();
 });
-setInterval(renderStatus, STATUS_TICK_MS);
+setInterval(
+  () => {
+    renderStatus();
+    renderSyncAge();
+  },
+  STATUS_TICK_MS
+);
 setInterval(refreshLoad, LOAD_PANEL_REFRESH_MS);
 setInterval(watchChanges, CHANGES_POLL_MS);
 // Without waiting for the first poll: the cards to look at are marked from the first render.
