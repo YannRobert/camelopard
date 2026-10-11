@@ -242,7 +242,7 @@ browser ──► http://localhost:8766 ──► Jira
 - **Since your last visit** (the bell in the header, which counts the issues changed): what others changed since
   the page was last seen — column moves, assignments, comments — from the local copy's history. A visit
   ends after an hour unseen: a reload keeps the list, the next morning starts a new one.
-- **Stand-up** (`S`, or the people icon in the header): whoever speaks hands over to anyone, so the floor
+- **Stand-up** (`Shift+S`, or the people icon in the header): whoever speaks hands over to anyone, so the floor
   is given rather than walked through. Click a person in the row, or type the start of their first name and
   press Enter (Enter alone, or `N`: someone who has not spoken yet). Since the previous working day (Friday
   on a Monday), the strip lists what that person did — column moves, assignments, comments, on any issue —

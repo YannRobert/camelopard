@@ -794,7 +794,7 @@ try {
 <!-- Second row: what part of the board is shown (view, stand-up, filters, search), and how much of it. -->
 <div class="toolbar">
   <span class="views" id="views" role="group" aria-label="Board view"></span>
-  <button type="button" class="icon-btn standup-btn" id="standup-toggle" aria-pressed="false" title="Stand-up: each one's cards in turn, in the order the floor goes (S)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20 c0-3.6 2.7-6 6-6 s6 2.4 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14.1 c2.6 0.2 4.5 2.4 4.5 5.4"/></svg></button>
+  <button type="button" class="icon-btn standup-btn" id="standup-toggle" aria-pressed="false" title="Stand-up: each one's cards in turn, in the order the floor goes (Shift + S)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20 c0-3.6 2.7-6 6-6 s6 2.4 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14.1 c2.6 0.2 4.5 2.4 4.5 5.4"/></svg></button>
   <div class="filters" id="filters" role="group" aria-label="Quick filters and labels"></div>
   <div class="filters filters-more" id="filters-more" role="group" aria-label="Other filters" hidden></div>
   <ul class="people-menu" id="people-menu" role="listbox" aria-label="Filter by assignee" tabindex="-1" hidden></ul>
@@ -829,8 +829,8 @@ try {
           <tr><td><kbd>A</kbd></td><td>Change the assignee</td></tr>
           <tr><td><kbd>L</kbd></td><td>Detail on the side or at the bottom</td></tr>
           <tr><td><kbd>M</kbd></td><td>Maximize the detail</td></tr>
-          <tr><td><kbd>/</kbd></td><td>Search</td></tr>
-          <tr><td><kbd>S</kbd></td><td>Stand-up</td></tr>
+          <tr><td><kbd>/</kbd></td><td>Search (on the board, typing a letter is enough)</td></tr>
+          <tr><td><kbd>Shift</kbd> <kbd>S</kbd></td><td>Stand-up</td></tr>
           <tr><td><kbd>?</kbd></td><td>This list</td></tr>
         </table>
       </div>
@@ -1752,7 +1752,7 @@ $("people-menu").addEventListener("mousemove", e => {
   renderPeopleMenu();
 });
 // Arrows, Home/End, a letter to jump to the next name starting with it: what a native list does. The keys
-// stop here, so the board's own shortcuts (S, D, A…) do not fire while choosing.
+// stop here, so the board's own shortcuts (D, A, M…) do not fire while choosing.
 $("people-menu").addEventListener("keydown", e => {
   const menu = state.peopleMenu;
   const last = menu.options.length - 1;
@@ -2751,7 +2751,7 @@ function toggleStandup() {
     `<span class="spacer"></span>` +
     `<input type="text" id="standup-query" autocomplete="off" spellcheck="false" placeholder="Next: type a name, Enter" ` +
     `aria-label="Who speaks next" title="Enter alone: someone who has not spoken yet">` +
-    `<button type="button" id="standup-end" title="Back to the whole board (S, or Escape twice)">End stand-up</button></div>` +
+    `<button type="button" id="standup-end" title="Back to the whole board (Shift + S, or Escape twice)">End stand-up</button></div>` +
     `<div class="people" id="standup-people" role="toolbar" aria-label="Participants"></div>` +
     `<div class="changes" id="standup-changes" hidden></div>`;
   renderBoard();
@@ -4549,11 +4549,14 @@ document.addEventListener("keydown", e => {
   } else if (e.key === "/") {
     e.preventDefault();
     $("q")?.focus();
-  } else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === "s") {
+  } else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key === "S") {
+    // Shift + S: a plain s starts a search like any other letter (below), so typing "sync" no longer
+    // starts the stand-up. The S itself must not land in the field the stand-up focuses.
+    e.preventDefault();
     toggleStandup();
   } else if (state.standup && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === "n") {
     nextSpeaker();
-  } else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === "l") {
+  } else if (state.openKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === "l") {
     toggleDock();
   } else if (state.openKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() in SECTION_KEYS) {
     readSection(SECTION_KEYS[e.key.toLowerCase()]);
@@ -4583,6 +4586,10 @@ document.addEventListener("keydown", e => {
       e.target,
       e.key
     );
+  } else if (!state.openKey && !e.ctrlKey && !e.metaKey && !e.altKey && /^\p{L}$/u.test(e.key)) {
+    // On the board, a letter no shortcut takes starts a search: the field gets the focus before the key
+    // lands, so the letter is typed in it. During the stand-up, it is the name of who speaks next.
+    (state.standup ? $("standup-query") : $("q")).focus();
   }
 });
 
