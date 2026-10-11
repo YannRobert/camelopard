@@ -805,7 +805,7 @@ try {
           <tr><td><kbd>Ctrl</kbd> <kbd>C</kbd></td><td>Copy the picked issues</td></tr>
           <tr><td><kbd>Shift</kbd> <kbd>S</kbd></td><td>Stand-up</td></tr>
           <tr><td><kbd>N</kbd></td><td>Stand-up: next speaker</td></tr>
-          <tr><td><kbd>Esc</kbd></td><td>Clear the picked cards, then end the stand-up</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>Out of the search (results kept); then, one at a time: clear the picked cards, end the stand-up, clear the search</td></tr>
           <tr><td><kbd>?</kbd></td><td>This list</td></tr>
         </table>
       </div>
@@ -4585,10 +4585,23 @@ document.addEventListener("keydown", e => {
     return;
   }
   if (e.key === "Escape") {
-    if (typing && e.target.id === "q" && state.q) return;
+    // Out of the search, its results kept: the board's keys (Shift + S, the arrows…) work again, where in the
+    // field every letter is text. A second Escape, on the board, clears the search.
+    if (typing && e.target.id === "q") {
+      e.preventDefault();
+      e.target.blur();
+      return;
+    }
     if (!$("panel").hidden) closeDetailToCard();
     else if (typing) e.target.blur();
     else if (state.standup) endStandup();
+    else if (state.q) {
+      $("q").value = "";
+      $("q").dispatchEvent(new Event(
+        "input",
+        { bubbles: true }
+      ));
+    }
     return;
   }
   if (typing) return;
