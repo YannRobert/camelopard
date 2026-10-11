@@ -2,7 +2,7 @@
 rem Jirafe: starts the local server and opens the board in the browser.
 rem Shortcut: right-click this file > Send to > Desktop (create shortcut).
 rem Launching it again does not start another server: it only reopens the board.
-rem Options are passed to the server, for instance: jirafe.cmd --port 9101
+rem Options are passed to the server, for instance: open.cmd --port 9101
 chcp 65001 >nul
 setlocal
 cd /d "%~dp0src"

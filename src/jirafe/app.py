@@ -28,8 +28,8 @@ every --sync-interval seconds (every --watch-interval while a page is watching),
 since the previous pass.
 
 Usage:
-    ./jirafe.sh                                     # Linux / macOS: starts the server and opens the browser
-    jirafe.cmd                                      # Windows: same
+    ./open.sh                                       # Linux / macOS: starts the server and opens the browser
+    open.cmd                                        # Windows: same
     cd src && python3 -m jirafe --board 42 --port 9101
 
 Portable across Windows / Linux / macOS, standard library only. Every file is read and written as explicit

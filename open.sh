@@ -1,7 +1,7 @@
 #!/bin/sh
 # Jirafe: starts the local server and opens the board in the browser (Linux / macOS).
 # Launching it again does not start another server: it only reopens the board.
-# Options are passed to the server, for instance: ./jirafe.sh --port 9101
+# Options are passed to the server, for instance: ./open.sh --port 9101
 cd "$(dirname "$0")/src" || exit 1
 
 if [ -z "$JIRA_PAT" ]; then

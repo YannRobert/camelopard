@@ -10,7 +10,7 @@ file lists what must be respected when changing it.
 - **Portable across Windows / Linux / macOS.** Every file is read and written as **explicit UTF-8**
   (`encoding="utf-8"`): the Windows default is cp1252. File replacements in the local copy must tolerate
   Windows' `PermissionError` (see `REPLACE_ATTEMPTS`).
-- **`jirafe.cmd` stays CRLF, `jirafe.sh` stays LF** (enforced by `.gitattributes`): `cmd.exe`
+- **`open.cmd` stays CRLF, `open.sh` stays LF** (enforced by `.gitattributes`): `cmd.exe`
   misreads an LF `.cmd`, and `sh` rejects a CRLF script. Both launchers do the same thing: changing one
   means changing the other.
 - **Nothing specific to a JIRA instance in the repository** (host, board, `customfield_*`, project or

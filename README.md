@@ -121,20 +121,20 @@ Creating it takes a few minutes with a text editor:
 
 ## Running
 
-- **Windows**: double-click `jirafe.cmd` (after running `setx JIRA_PAT "the-token"` once). For a
-  shortcut: right-click > Send to > Desktop.
-- **Linux / macOS**: `./jirafe.sh` (after adding `export JIRA_PAT="the-token"` to `~/.profile` or
+- **Windows**: double-click `open.cmd` (after running `setx JIRA_PAT "the-token"` once). For a
+  shortcut: right-click > Send to > Desktop, then rename it "Jirafe".
+- **Linux / macOS**: `./open.sh` (after adding `export JIRA_PAT="the-token"` to `~/.profile` or
   `~/.zshrc`).
 
 The launcher finds Python, starts the server and opens the browser; launching it again simply reopens
-the board. Options are passed through (`./jirafe.sh --port 9101`). Without a launcher:
+the board. Options are passed through (`./open.sh --port 9101`). Without a launcher:
 
 ```bash
 cd src && python3 -m jirafe --open
 ```
 
 To keep the server running after the terminal closes (Linux / macOS): `./start.sh` starts it in the
-background with `nohup` (same options as `jirafe.sh`, browser not opened), `./stop.sh` stops it. The pid and
+background with `nohup` (same options as `open.sh`, browser not opened), `./stop.sh` stops it. The pid and
 the log (`jirafe.log`) sit next to the local copy, in `~/.cache/jirafe` (`~/Library/Caches/jirafe` on macOS).
 
 Then open <http://localhost:8766>.
@@ -179,7 +179,7 @@ Nothing here needs administrator rights: Jirafe runs as you.
 - **macOS**: a LaunchAgent, `~/Library/LaunchAgents/jirafe.plist`, running `python3 -u -m jirafe --quiet`
   in the repository's `src` directory with `JIRA_PAT` in its `EnvironmentVariables`, and `RunAtLoad`
   set; then `launchctl load ~/Library/LaunchAgents/jirafe.plist`. Keep the file `chmod 600`: it holds the token.
-- **Windows**: a shortcut to `jirafe.cmd` in the startup folder (`Win+R`, `shell:startup`); it also opens
+- **Windows**: a shortcut to `open.cmd` in the startup folder (`Win+R`, `shell:startup`); it also opens
   the browser.
 
 ### Options
@@ -282,7 +282,7 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 ## Layout
 
 ```
-jirafe.cmd, jirafe.sh     Windows and Linux / macOS launchers
+open.cmd, open.sh         Windows and Linux / macOS launchers
 start.sh, stop.sh         background server (Linux / macOS)
 jirafe.example.json       configuration template
 demo/                     fake Jira and fictional boards (scenarios/), to try Jirafe without Jira
