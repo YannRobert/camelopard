@@ -93,6 +93,8 @@ try {
   a { color: var(--link); text-decoration: none; }
   a:hover { text-decoration: underline; }
   :focus-visible, .card.focus-return:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* The detail's scrolling areas clip what is drawn outside them: their ring goes inside. */
+  #panel-content:focus-visible, #panel-content > :focus-visible { outline-offset: -2px; }
   button { font: inherit; color: inherit; }
 
   /* Two rows of fixed height, whatever the board: the header (which board, its data) and the toolbar (which
@@ -797,18 +799,18 @@ try {
 <div class="error-banner" id="offline" role="alert" hidden>The local server does not answer: the board shows the last data received. Start it again (<code>start.sh</code>, <code>open.sh</code> or <code>open.cmd</code>); the page reconnects by itself.</div>
 <div id="errors"></div>
 <main><div class="board" id="board"><div class="skeleton">Loading the board…</div></div></main>
-<aside id="panel" hidden aria-label="Issue detail">
+<aside id="panel" hidden aria-label="Issue detail" tabindex="-1">
   <div class="grip" id="panel-grip" title="Drag to resize"></div>
   <div class="bar">
     <a class="key" id="panel-key" target="_blank" rel="noopener"></a>
-    <span class="nav">↑ ↓ ← → navigate · Enter open in Jira · D side/bottom · M maximize · Esc close</span>
+    <span class="nav" title="Arrows: next issue from a card, scroll in the detail · D C H: description, comments, history · Tab: into the detail · Esc: back to the card, then close · Enter: open in Jira · L: side or bottom · M: maximize">↑ ↓ ← → issues · D C H sections · Tab Esc in/out · Enter Jira · L layout · M maximize</span>
     <span class="spacer"></span>
     <span class="sync" id="panel-sync"></span>
     <button type="button" class="icon-btn" id="panel-dock"></button>
     <button type="button" class="icon-btn" id="panel-max"></button>
     <button type="button" class="btn" id="panel-close">Close</button>
   </div>
-  <div class="content" id="panel-content"></div>
+  <div class="content" id="panel-content" tabindex="-1"></div>
   <nav class="jump" aria-label="Go to a section of the detail">
     <div class="sections" id="panel-sections"></div>
     <button type="button" class="to-top" id="panel-top" title="Back to the top of the detail" aria-label="Back to the top of the detail">↑</button>
@@ -3167,6 +3169,17 @@ function closeDetail() {
 function closeDetailToCard() {
   const key = state.openKey;
   closeDetail();
+  focusCard(key);
+}
+
+// Into the detail (Tab from its card): the arrows then scroll what is read, the description in bottom mode.
+function focusDetail() {
+  const content = $("panel-content");
+  const body = content.querySelector(":scope > .body");
+  (body && body.scrollHeight > body.clientHeight ? body : content).focus({ preventScroll: true });
+}
+
+function focusCard(key) {
   const card = key && document.querySelector(`.card[data-key="${CSS.escape(key)}"]`);
   if (!card) return;
   // Ringed even when the panel was opened with the mouse, where the browser would not show the focus: the
@@ -3239,9 +3252,10 @@ function renderDetail(
   state.renderedKey = key;
   const positions = sameTicket ? panelScrollers().map(el => el.scrollTop) : [];
   $("panel-content").innerHTML =
-    `<div class="head"><h3>${escapeHtml(f?.summary ?? issue?.summary ?? key)}</h3>${factsHtml(facts)}</div>` +
-    `<div class="body"><h4 data-jump="description">Description</h4>${description}${f ? linksHtml(f) + attachmentsHtml(f) : ""}</div>` +
-    `<div class="comments">${data ? commentsHtml(data) + historyHtml(data) : ""}</div>`;
+    // Focusable, like the content around them: a click or Tab in one lets the arrows scroll it (bottom mode).
+    `<div class="head" tabindex="-1"><h3>${escapeHtml(f?.summary ?? issue?.summary ?? key)}</h3>${factsHtml(facts)}</div>` +
+    `<div class="body" tabindex="-1"><h4 data-jump="description">Description</h4>${description}${f ? linksHtml(f) + attachmentsHtml(f) : ""}</div>` +
+    `<div class="comments" tabindex="-1">${data ? commentsHtml(data) + historyHtml(data) : ""}</div>`;
   panelScrollers().forEach((el, index) => { el.scrollTop = positions[index] ?? 0; });
   if (!sameTicket) $("panel-top").classList.remove("shown");
   renderJump();
@@ -4468,6 +4482,16 @@ document.addEventListener("keydown", e => {
     return;
   }
   if (e.key === "Escape" && !typing && clearPicked()) return;
+  // Escape steps back one level: from the detail to its card (the arrows go to the issues again), then closes.
+  if (e.key === "Escape" && !typing && state.openKey && e.target.closest?.("#panel")) {
+    focusCard(state.openKey);
+    return;
+  }
+  if (e.key === "Tab" && !e.shiftKey && state.openKey && e.target.matches?.("#board .card.selected")) {
+    e.preventDefault();
+    focusDetail();
+    return;
+  }
   if (e.key === "Escape") {
     if (typing && e.target.id === "q" && state.q) return;
     if (!$("panel").hidden) closeDetailToCard();
@@ -4483,8 +4507,10 @@ document.addEventListener("keydown", e => {
     toggleStandup();
   } else if (state.standup && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === "n") {
     nextSpeaker();
-  } else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === "d") {
+  } else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === "l") {
     toggleDock();
+  } else if (state.openKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() in SECTION_KEYS) {
+    readSection(SECTION_KEYS[e.key.toLowerCase()]);
   } else if (state.openKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === "m") {
     toggleMaximized();
   } else if (state.openKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === "a") {
@@ -4496,7 +4522,9 @@ document.addEventListener("keydown", e => {
     // Open preview: Enter goes deeper, the selected issue opens in full in Jira (new tab).
     e.preventDefault();
     window.open(browseUrl(state.openKey), "_blank", "noopener");
-  } else if (state.openKey && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+  } else if (state.openKey && !e.target.closest?.("#panel") && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+    // From the board, the arrows go to the next issue; in the detail (a click or Tab there) they scroll it
+    // instead, so reading never changes the issue by accident. Escape or a click on a card gives them back.
     e.preventDefault();
     moveSelection(e.key);
   } else if (e.target.matches?.("#board .card") && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
@@ -4582,13 +4610,23 @@ function renderJump() {
 }
 
 // Scrolls the column holding the section (at the bottom, each one scrolls alone; on the side, the whole detail).
+// Returns that column.
 function jumpTo(id) {
   const content = $("panel-content");
   const heading = content.querySelector(`[data-jump="${id}"]`);
-  if (!heading) return;
+  if (!heading) return null;
   const scroller = [...content.children].find(el => el.contains(heading) && getComputedStyle(el).overflowY === "auto") ?? content;
   const top = heading.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - 12;
   scroller.scrollTo({ top, behavior: scrollBehavior() });
+  return scroller;
+}
+
+// D, C, H: straight to a section with the keyboard, the focus with it, so the arrows then scroll that section
+// and no longer change the issue (Escape gives them back to the cards).
+const SECTION_KEYS = { d: "description", c: "comments", h: "history" };
+
+function readSection(id) {
+  jumpTo(id)?.focus({ preventScroll: true });
 }
 
 // Preview of attached images: shown after a short hover delay (a quick pass loads nothing), placed on the
@@ -4707,7 +4745,7 @@ function applyDock() {
   const height = Number(readPreference(PANEL_HEIGHT_KEY));
   if (height) panel.style.setProperty("--panel-height", `${height * 100}vh`);
   $("panel-dock").textContent = bottom ? "◨" : "⬓";
-  $("panel-dock").title = bottom ? "Show the detail on the side (D key)" : "Show the detail at the bottom, full width (D key)";
+  $("panel-dock").title = bottom ? "Show the detail on the side (L key)" : "Show the detail at the bottom, full width (L key)";
 }
 
 function toggleDock() {
