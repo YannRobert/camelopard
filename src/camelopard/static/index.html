@@ -580,8 +580,17 @@ try {
   }
   aside .bar { flex: none; display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); }
   aside .bar .key { font-weight: 600; }
-  /* Set apart from the issue key: it is help about the keys, not part of the issue's name. */
-  aside .bar .nav { margin-left: 0.9rem; color: var(--faint); font-size: 0.75rem; }
+  /* The keys, on demand: always written out, they took two lines of the bar on the side. */
+  aside .bar .shortcuts { position: relative; }
+  .shortcuts-panel { width: max-content; max-width: calc(100vw - 2rem); }
+  .shortcuts-panel table { font-family: inherit; }
+  .shortcuts-panel td { font-family: inherit; padding: 0.25rem 0.4rem; vertical-align: baseline; }
+  .shortcuts-panel td:first-child { white-space: nowrap; }
+  .shortcuts-panel td:last-child { text-align: left; color: var(--muted); }
+  .shortcuts-panel kbd {
+    font: inherit; font-size: 0.75rem; padding: 0 0.35rem; border: 1px solid var(--border); border-bottom-width: 2px;
+    border-radius: 3px; background: var(--card); color: var(--text);
+  }
   aside .bar .spacer { flex: 1; }
   aside .bar .sync { font-size: 0.8rem; }
   .sync-failed { color: var(--red); }
@@ -804,9 +813,28 @@ try {
   <div class="grip" id="panel-grip" title="Drag to resize"></div>
   <div class="bar">
     <a class="key" id="panel-key" target="_blank" rel="noopener"></a>
-    <span class="nav" title="Arrows: next issue from a card, scroll in the detail · D C H: description, comments, history · Tab: into the detail · Esc: back to the card, then close · Enter: open a card · J: open in Jira · L: side or bottom · M: maximize">↑ ↓ ← → issues · D C H sections · Tab Esc in/out · J Jira · L layout · M maximize</span>
     <span class="spacer"></span>
     <span class="sync" id="panel-sync"></span>
+    <div class="shortcuts">
+      <button type="button" class="icon-btn" id="shortcuts-btn" aria-expanded="false" aria-controls="shortcuts-panel" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M8 14h8"/></svg></button>
+      <div class="load-panel shortcuts-panel" id="shortcuts-panel" hidden>
+        <h4>Keyboard</h4>
+        <table>
+          <tr><td><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd></td><td>From a card: the next issue. In the detail: scroll it</td></tr>
+          <tr><td><kbd>Enter</kbd></td><td>Open the card's detail</td></tr>
+          <tr><td><kbd>D</kbd> <kbd>C</kbd> <kbd>H</kbd></td><td>Description, comments, history</td></tr>
+          <tr><td><kbd>Tab</kbd></td><td>Into the detail</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>Back to the card, then close</td></tr>
+          <tr><td><kbd>J</kbd></td><td>Open in Jira</td></tr>
+          <tr><td><kbd>A</kbd></td><td>Change the assignee</td></tr>
+          <tr><td><kbd>L</kbd></td><td>Detail on the side or at the bottom</td></tr>
+          <tr><td><kbd>M</kbd></td><td>Maximize the detail</td></tr>
+          <tr><td><kbd>/</kbd></td><td>Search</td></tr>
+          <tr><td><kbd>S</kbd></td><td>Stand-up</td></tr>
+          <tr><td><kbd>?</kbd></td><td>This list</td></tr>
+        </table>
+      </div>
+    </div>
     <button type="button" class="icon-btn" id="panel-dock"></button>
     <button type="button" class="icon-btn" id="panel-max"></button>
     <button type="button" class="btn" id="panel-close">Close</button>
@@ -2324,6 +2352,16 @@ function toggleAboutPanel(open) {
 }
 
 $("about").addEventListener("click", () => toggleAboutPanel($("about-panel").hidden));
+
+function toggleShortcuts(open) {
+  $("shortcuts-panel").hidden = !open;
+  $("shortcuts-btn").setAttribute("aria-expanded", String(open));
+}
+
+$("shortcuts-btn").addEventListener("click", () => toggleShortcuts($("shortcuts-panel").hidden));
+document.addEventListener("click", e => {
+  if (!$("shortcuts-panel").hidden && !e.target.closest(".shortcuts")) toggleShortcuts(false);
+});
 
 function compactDuration(ms) {
   const minutes = Math.max(0, Math.floor(ms / 60000));
@@ -4462,6 +4500,11 @@ document.addEventListener("keydown", e => {
     $("load").focus();
     return;
   }
+  // Closed where the focus stays: opened with "?" from a card, the arrows go on from that card.
+  if (e.key === "Escape" && !$("shortcuts-panel").hidden) {
+    toggleShortcuts(false);
+    return;
+  }
   if (e.key === "Escape" && !$("about-panel").hidden) {
     toggleAboutPanel(false);
     $("about").focus();
@@ -4501,7 +4544,9 @@ document.addEventListener("keydown", e => {
     return;
   }
   if (typing) return;
-  if (e.key === "/") {
+  if (e.key === "?" && state.openKey) {
+    toggleShortcuts($("shortcuts-panel").hidden);
+  } else if (e.key === "/") {
     e.preventDefault();
     $("q")?.focus();
   } else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === "s") {
