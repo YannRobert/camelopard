@@ -293,8 +293,8 @@ try {
   /* Giraffe horns (ossicones, as on the logo) planted on the last letter of the first name, to keep the
      initial readable: the top of a lowercase letter is ~0.5em below the top of the box; the horns (0.7em)
      sink their base into it. */
-  .qf.me .horned { position: relative; display: inline-block; }
-  .qf.me .horned::before {
+  .qf.me .horned, .people-menu .me .horned { position: relative; display: inline-block; }
+  .qf.me .horned::before, .people-menu .me .horned::before {
     content: ""; position: absolute; left: 50%; top: -0.14em; width: 0.8em; height: 0.7em;
     transform: translateX(-50%) rotate(-6deg); pointer-events: none;
     background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 17'%3E%3Cg stroke-linecap='round' fill='none'%3E%3Cpath d='M7.5 16 L5.6 5.5 M12.5 16 L14.4 5.5' stroke='%233b2412' stroke-width='4.6'/%3E%3Cpath d='M7.5 16 L5.6 5.5 M12.5 16 L14.4 5.5' stroke='%23f2b84b' stroke-width='2.2'/%3E%3C/g%3E%3Cg fill='%238a4f1c' stroke='%233b2412' stroke-width='1.2'%3E%3Ccircle cx='5.4' cy='4.2' r='3'/%3E%3Ccircle cx='14.6' cy='4.2' r='3'/%3E%3C/g%3E%3C/svg%3E");
@@ -332,6 +332,24 @@ try {
     font: inherit; font-size: 0.8rem; color: var(--link); background: transparent; border: 1px dashed var(--border);
     border-radius: 3px; padding: 0.15rem 0.3rem; cursor: pointer; max-width: 12rem;
   }
+  .filters .people { display: inline-flex; align-items: center; gap: 0.35rem; }
+  .filters .people svg { width: 0.7rem; height: 0.7rem; fill: none; stroke: currentColor; stroke-width: 3; }
+  .filters .people .avatar, .people-menu .avatar { width: 1.15rem; height: 1.15rem; font-size: 0.5rem; box-shadow: none; }
+  /* Fixed, not inside the filters: the line hides what overflows it, and the popover moves its children. */
+  .people-menu {
+    position: fixed; z-index: 40; min-width: 14rem; overflow-y: auto; margin: 0; padding: 0.25rem 0; list-style: none;
+    font-size: 0.85rem; background: var(--popover); border: 1px solid var(--chip); border-radius: 0.5rem;
+    box-shadow: var(--popover-shadow); outline: none; scrollbar-width: thin; scrollbar-color: var(--chip) transparent;
+  }
+  .people-menu[hidden] { display: none; }
+  .people-menu li { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.7rem; cursor: pointer; white-space: nowrap; }
+  .people-menu li.active { background: var(--card-hover); }
+  .people-menu li[aria-selected="true"] .name { color: var(--accent); font-weight: 600; }
+  .people-menu li[aria-selected="true"] .name::after { content: " ✓"; }
+  /* The user, as on their own button: horns and accent, their login like everyone's. */
+  .people-menu li.me .name { color: var(--accent); font-weight: 700; }
+  .people-menu li .login { margin-left: auto; padding-left: 1rem; color: var(--faint); font-size: 0.75rem; }
+  .people-menu li.everyone { color: var(--muted); border-bottom: 1px solid var(--border); margin-bottom: 0.2rem; }
   .icon-btn {
     border: 0; background: none; color: var(--muted); cursor: pointer; font: inherit;
     padding: 0.2rem 0.35rem; border-radius: 4px;
@@ -751,6 +769,7 @@ try {
   <button type="button" class="icon-btn standup-btn" id="standup-toggle" aria-pressed="false" title="Stand-up: each one's cards in turn, in the order the floor goes (S)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20 c0-3.6 2.7-6 6-6 s6 2.4 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14.1 c2.6 0.2 4.5 2.4 4.5 5.4"/></svg></button>
   <div class="filters" id="filters" role="group" aria-label="Quick filters and labels"></div>
   <div class="filters filters-more" id="filters-more" role="group" aria-label="Other filters" hidden></div>
+  <ul class="people-menu" id="people-menu" role="listbox" aria-label="Filter by assignee" tabindex="-1" hidden></ul>
   <div class="search">
     <input id="q" type="search" placeholder="Search (key, summary, type…)  /" title="Key, summary, assignee, epic, labels, type, status, priority — every word must match. Keywords: type:bug status:&quot;in progress&quot; label:back priority:high epic:login @name @me @none; a leading - excludes (-label:back)" aria-label="Search" autocomplete="off">
     <span class="count" id="count"></span>
@@ -948,6 +967,9 @@ const state = {
   autoRefresh: readPreference(AUTO_REFRESH_KEY) !== "false",
   // The popover of the filters past the end of their line.
   filtersOpen: false,
+  // The assignee list, while open: its entries and the one the keyboard is on.
+  peopleMenu: null,
+  peopleEntries: [],
   dock: readPreference(DOCK_KEY) === "bottom" ? "bottom" : "side",
   // Not remembered across reloads: a maximized detail hides the board the page opens on.
   maximized: false,
@@ -1465,7 +1487,10 @@ function renderFilters() {
   const named = filters.filter(f => ASSIGNEE_IS.test(f.query) && !isMyFilter(f));
   const listed = new Set(named.length > PEOPLE_AS_BUTTONS ? named.map(f => f.id) : []);
   const shown = filters.filter(f => !listed.has(f.id));
-  const people = listed.size ? peopleHtml(named) : "";
+  const people = listed.size ? peopleHtml(
+    named,
+    filters.find(isMyFilter)
+  ) : "";
   const labels = labelsHtml(board);
   const items = shown.map(f => ({
     person: isPersonFilter(f.id),
@@ -1515,7 +1540,8 @@ function fitFilters() {
   const hidden = over < 0 ? [] : items.slice(cut);
   // The separator opening the group has nothing before it in the popover: it stays, hidden, on the line.
   if (hidden[0]?.matches(".qf-sep")) hidden.shift().hidden = true;
-  const count = hidden.reduce((sum, el) => sum + (el.matches("button") ? 1 : el.matches("select") ? el.options.length - 1 : 0), 0);
+  const count = hidden.reduce((sum, el) => sum + (el.id === "people-filter" ? Number(el.dataset.count)
+    : el.matches("button") ? 1 : el.matches("select") ? el.options.length - 1 : 0), 0);
   const on = hidden.filter(el => el.getAttribute("aria-pressed") === "true" || el.matches(".people.active")).length;
   // The rest waits in a popover over the cards: opening it moves nothing on the page.
   popover.append(...hidden);
@@ -1532,19 +1558,142 @@ function showMoreFilters(open) {
   popover.hidden = !state.filtersOpen;
   $("more-filters")?.setAttribute("aria-expanded", String(state.filtersOpen));
   if (state.filtersOpen) popover.style.left = `${$("filters").offsetLeft}px`;
+  // A refresh or a resize may have rebuilt or moved the assignee button: its list follows it.
+  if (state.peopleMenu) placePeopleMenu();
 }
 
 // The line's room changes with the window, and with the count beside it.
 new ResizeObserver(fitFilters).observe($("filters"));
 
-// The colleagues' filters as one list: the one switched on is selected, the first entry switches it off.
-function peopleHtml(named) {
-  const on = named.find(f => state.quick.has(f.id));
-  return `<select id="people-filter" class="more-labels people${on ? " active" : ""}" aria-label="Filter by assignee">` +
-    `<option value="">${on ? "Everyone" : `People · ${named.length}`}</option>` +
-    named.map(f => `<option value="${f.id}"${f === on ? " selected" : ""}>${escapeHtml(f.name)}</option>`).join("") +
-    `</select>`;
+// The colleagues' filters as one list, the user's own first: a native list cannot show the avatars, which
+// tell apart people the board's filters name by a nickname. The button shows the one switched on.
+function peopleHtml(
+  named,
+  mine
+) {
+  const people = (mine ? [mine, ...named] : named).map(personEntry);
+  const on = people.find(p => state.quick.has(p.id));
+  state.peopleEntries = [{ id: null, name: "Everyone" }, ...people];
+  if (state.peopleMenu) state.peopleMenu.options = state.peopleEntries;
+  const chevron = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9 L12 16 L19 9"/></svg>`;
+  return `<button type="button" id="people-filter" class="more-labels people${on ? " active" : ""}" data-count="${named.length}" ` +
+    `aria-haspopup="listbox" aria-controls="people-menu" aria-expanded="${Boolean(state.peopleMenu)}" title="Filter by assignee">` +
+    (on ? `${avatar(on.login, on.fullName, on.avatar)}${escapeHtml(on.name)}` : `People · ${named.length}`) + `${chevron}</button>`;
 }
+
+// A filter's person: its login is in its query, whatever name the board gives the filter; name and photo come
+// from the people the page already knows (no request), or initials from the filter's name.
+function personEntry(filter) {
+  const match = filter.query.match(ASSIGNEE_IS);
+  const login = match[1] ?? match[2];
+  const known = knownPeople().find(p => p.login.toLowerCase() === login.toLowerCase());
+  return { id: filter.id, name: filter.name, login, fullName: known?.name ?? filter.name, avatar: known?.avatar ?? null, me: isMyFilter(filter) };
+}
+
+function openPeopleMenu(open) {
+  const menu = $("people-menu");
+  if (!open) {
+    if (!state.peopleMenu) return;
+    state.peopleMenu = null;
+    menu.hidden = true;
+    $("people-filter")?.setAttribute("aria-expanded", "false");
+    return;
+  }
+  const options = state.peopleEntries;
+  state.peopleMenu = { options, active: Math.max(0, options.findIndex(p => p.id !== null && state.quick.has(p.id))) };
+  $("people-filter").setAttribute("aria-expanded", "true");
+  renderPeopleMenu();
+  menu.hidden = false;
+  placePeopleMenu();
+  menu.focus();
+}
+
+function renderPeopleMenu() {
+  const { options, active } = state.peopleMenu;
+  const anyOn = options.some(p => p.id !== null && state.quick.has(p.id));
+  $("people-menu").innerHTML = options.map((p, index) => {
+    const selected = p.id === null ? !anyOn : state.quick.has(p.id);
+    const content = p.id === null
+      ? `<span class="name">Everyone</span>`
+      : `${avatar(p.login, p.fullName, p.avatar)}<span class="name">${p.me ? myName(p.name) : escapeHtml(p.name)}</span>` +
+        `<span class="login">${escapeHtml(p.login)}</span>`;
+    const classes = [p.id === null ? "everyone" : "", p.me ? "me" : "", index === active ? "active" : ""].filter(Boolean).join(" ");
+    return `<li role="option" id="people-option-${index}" data-index="${index}" class="${classes}" ` +
+      `aria-selected="${selected}">${content}</li>`;
+  }).join("");
+  $("people-menu").setAttribute("aria-activedescendant", `people-option-${active}`);
+  $(`people-option-${active}`)?.scrollIntoView({ block: "nearest" });
+}
+
+// Under its button, wherever the button is (line or popover); closed when the button is no longer shown.
+function placePeopleMenu() {
+  const button = $("people-filter");
+  const box = button?.getBoundingClientRect();
+  if (!box?.width) {
+    openPeopleMenu(false);
+    return;
+  }
+  const menu = $("people-menu");
+  const top = box.bottom + 4;
+  menu.style.top = `${top}px`;
+  menu.style.maxHeight = `${Math.max(window.innerHeight - top - 16, 160)}px`;
+  menu.style.left = `${Math.max(8, Math.min(box.left, window.innerWidth - menu.offsetWidth - 8))}px`;
+}
+
+function pickPerson(index) {
+  const person = state.peopleMenu.options[index];
+  openPeopleMenu(false);
+  state.filtersOpen = false;
+  for (const id of [...state.quick]) if (isPersonFilter(id)) state.quick.delete(id);
+  if (person.id !== null) switchOnFilter(person.id);
+  quickFiltersChanged();
+  $("people-filter")?.focus();
+}
+
+$("people-menu").addEventListener("click", e => {
+  const option = e.target.closest("li[data-index]");
+  if (option) pickPerson(Number(option.dataset.index));
+});
+$("people-menu").addEventListener("mousemove", e => {
+  const option = e.target.closest("li[data-index]");
+  if (!option || Number(option.dataset.index) === state.peopleMenu.active) return;
+  state.peopleMenu.active = Number(option.dataset.index);
+  renderPeopleMenu();
+});
+// Arrows, Home/End, a letter to jump to the next name starting with it: what a native list does. The keys
+// stop here, so the board's own shortcuts (S, D, A…) do not fire while choosing.
+$("people-menu").addEventListener("keydown", e => {
+  const menu = state.peopleMenu;
+  const last = menu.options.length - 1;
+  let next = null;
+  if (e.key === "ArrowDown") next = Math.min(menu.active + 1, last);
+  else if (e.key === "ArrowUp") next = Math.max(menu.active - 1, 0);
+  else if (e.key === "Home") next = 0;
+  else if (e.key === "End") next = last;
+  else if (e.key === "Enter" || e.key === " ") pickPerson(menu.active);
+  else if (e.key === "Escape") {
+    openPeopleMenu(false);
+    $("people-filter")?.focus();
+  } else if (e.key === "Tab") {
+    openPeopleMenu(false);
+    return;
+  } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const letter = normalize(e.key);
+    const order = menu.options.map((_, index) => (menu.active + 1 + index) % menu.options.length);
+    next = order.find(index => normalize(menu.options[index].name).startsWith(letter)) ?? null;
+  } else {
+    return;
+  }
+  e.preventDefault();
+  e.stopPropagation();
+  if (next !== null && state.peopleMenu) {
+    menu.active = next;
+    renderPeopleMenu();
+  }
+});
+window.addEventListener("resize", () => {
+  if (state.peopleMenu) placePeopleMenu();
+});
 
 // Issues and story points displayed — view columns and filters — out of the sprint total:
 // "21 / 49 · 37 / 94 pts". In a Dev view, for instance, the share left on the dev side.
@@ -3201,11 +3350,16 @@ function writeUrl() {
 // ---------- Events ----------
 
 document.addEventListener("click", e => {
+  if (e.target.closest("#people-filter")) {
+    openPeopleMenu(!state.peopleMenu);
+    return;
+  }
+  if (state.peopleMenu && !e.target.closest("#people-menu")) openPeopleMenu(false);
   if (e.target.closest("#more-filters")) {
     showMoreFilters(!state.filtersOpen);
     return;
   }
-  if (state.filtersOpen && !e.target.closest("#filters-more")) showMoreFilters(false);
+  if (state.filtersOpen && !e.target.closest("#filters-more, #people-menu")) showMoreFilters(false);
   if (e.target.closest("#clear-filters")) {
     clearFilters();
     return;
@@ -4226,13 +4380,8 @@ document.addEventListener("keydown", e => {
 });
 
 document.addEventListener("change", e => {
-  if (["more-labels", "people-filter"].includes(e.target.id)) state.filtersOpen = false;
+  if (e.target.id === "more-labels") state.filtersOpen = false;
   if (e.target.id === "more-labels" && e.target.value) toggleLabel(e.target.value);
-  if (e.target.id === "people-filter") {
-    for (const id of [...state.quick]) if (isPersonFilter(id)) state.quick.delete(id);
-    if (e.target.value) switchOnFilter(Number(e.target.value));
-    quickFiltersChanged();
-  }
 });
 
 $("sprint").addEventListener("change", e => {
