@@ -305,8 +305,8 @@ try {
   /* Giraffe horns (ossicones, as on the logo) planted on the last letter of the first name, to keep the
      initial readable: the top of a lowercase letter is ~0.5em below the top of the box; the horns (0.7em)
      stand on it rather than sink into it, which would turn an "n" into an "h". */
-  .qf.me .horned, .people-menu .me .horned { position: relative; display: inline-block; }
-  .qf.me .horned::before, .people-menu .me .horned::before {
+  .qf.me .horned { position: relative; display: inline-block; }
+  .qf.me .horned::before {
     content: ""; position: absolute; left: 50%; top: -0.3em; width: 0.8em; height: 0.7em;
     transform: translateX(-50%) rotate(-6deg); pointer-events: none;
     background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 17'%3E%3Cg stroke-linecap='round' fill='none'%3E%3Cpath d='M7.5 16 L5.6 5.5 M12.5 16 L14.4 5.5' stroke='%233b2412' stroke-width='4.6'/%3E%3Cpath d='M7.5 16 L5.6 5.5 M12.5 16 L14.4 5.5' stroke='%23f2b84b' stroke-width='2.2'/%3E%3C/g%3E%3Cg fill='%238a4f1c' stroke='%233b2412' stroke-width='1.2'%3E%3Ccircle cx='5.4' cy='4.2' r='3'/%3E%3Ccircle cx='14.6' cy='4.2' r='3'/%3E%3C/g%3E%3C/svg%3E");
@@ -358,8 +358,6 @@ try {
   .people-menu li.active, .picker li.active { background: var(--chip); box-shadow: inset 3px 0 0 var(--accent); }
   .people-menu li[aria-selected="true"] .name { color: var(--accent); font-weight: 600; }
   .people-menu li[aria-selected="true"] .name::after { content: " ✓"; }
-  /* The user, as on their own button: horns and accent, their login like everyone's. */
-  .people-menu li.me .name { color: var(--accent); font-weight: 700; }
   .people-menu li .login { margin-left: auto; padding-left: 1rem; color: var(--faint); font-size: 0.75rem; }
   .people-menu li.everyone { color: var(--muted); border-bottom: 1px solid var(--border); margin-bottom: 0.2rem; }
   .icon-btn {
@@ -944,7 +942,7 @@ const VIEWS = CONFIG.views?.length
   ? [...CONFIG.views.map((v, index) => ({ id: String(index), label: v.label, from: v.from })), { id: "all", label: "All" }]
     .map((v, index) => ({ ...v, key: String(index + 1) }))
   : [];
-const ASSIGNEE_IS_ME = /^\s*assignee\s*=\s*currentUser\(\)\s*$/i;
+const ASSIGNEE_IS_ME = /^\s*assignee\s*(?:=\s*currentUser\(\)|in\s*\(\s*currentUser\(\)\s*\))\s*$/i;
 const ASSIGNEE_IS = /^\s*assignee\s*=\s*(?:"([^"]+)"|([\w.@-]+))\s*$/i;
 const ASSIGNEE_NOT_IN = /^\s*assignee\s+not\s+in\s*\(([^)]*)\)\s*$/i;
 const ASSIGNEE_EMPTY = /^\s*assignee\s+(?:is\s+(?:empty|null)|=\s*(?:empty|null))\s*$/i;
@@ -1471,7 +1469,7 @@ function isPersonFilter(id) {
   return Boolean(filter) && [ASSIGNEE_IS_ME, ASSIGNEE_IS, ASSIGNEE_NOT_IN, ASSIGNEE_EMPTY].some(pattern => pattern.test(filter.query));
 }
 
-// The "assignee = <me>" filter: highlighted, to find oneself at a glance in the alphabetical list.
+// The user's own filter: highlighted, to find oneself at a glance among the filters.
 // The last letter of the first name is isolated: it carries the giraffe horns.
 function myName(name) {
   const letters = Array.from(name);
@@ -1483,15 +1481,24 @@ function myName(name) {
     escapeHtml(letters.slice(last + 1).join(""));
 }
 
+// "assignee = <my login>" and Jira's "Only My Issues" (assignee = currentUser()), recognised by their query
+// whatever their name or language: the same issues, so the page shows one of them only.
 function isMyFilter(filter) {
+  if (ASSIGNEE_IS_ME.test(filter.query)) return true;
   const match = filter.query.match(ASSIGNEE_IS);
   return Boolean(match && state.meta?.me) && (match[1] ?? match[2]).toLowerCase() === state.meta.me.toLowerCase();
 }
 
+// The board's name for the filter when it names the user, their first name when it is Jira's generic one.
+function myFilterLabel(filter) {
+  const firstName = (state.meta?.meName ?? "").trim().split(/\s+/)[0];
+  return myName(ASSIGNEE_IS_ME.test(filter.query) && firstName ? firstName : filter.name);
+}
+
 // Jira shows quick filters in the order the board administrator created them, which means nothing. Here:
-// people in alphabetical order, then unassigned and "my issues", then the rest in Jira's order.
+// the user's own first, then people in alphabetical order, then unassigned, then the rest in Jira's order.
 function displayOrder(filters) {
-  const rank = f => ASSIGNEE_IS.test(f.query) ? 0 : isPersonFilter(f.id) ? 1 : 2;
+  const rank = f => isMyFilter(f) ? -1 : ASSIGNEE_IS.test(f.query) ? 0 : isPersonFilter(f.id) ? 1 : 2;
   return filters
     .map((filter, index) => ({ filter, index }))
     .sort((a, b) => rank(a.filter) - rank(b.filter)
@@ -1515,21 +1522,23 @@ function quickFiltersChanged() {
 
 function renderFilters() {
   const board = currentBoard();
-  const filters = displayOrder(state.meta?.quickFilters ?? []);
+  const ordered = displayOrder(state.meta?.quickFilters ?? []);
+  // A board often has both "assignee = <me>" and "Only My Issues": one button stands for them, the first.
+  // A twin switched on (a link shared before) stands for it too.
+  const twins = ordered.filter(isMyFilter).slice(1);
+  for (const twin of twins) if (state.quick.delete(twin.id)) state.quick.add(ordered.find(isMyFilter).id);
+  const filters = ordered.filter(f => !twins.includes(f));
   // One filter per colleague makes a long row of names to read through: past a few, they go in one list,
-  // like the labels' "+N more". The user's own filter stays a button, found at a glance.
+  // like the labels' "+N more". The user's own filter stays a button beside it, and only there.
   const named = filters.filter(f => ASSIGNEE_IS.test(f.query) && !isMyFilter(f));
   const listed = new Set(named.length > PEOPLE_AS_BUTTONS ? named.map(f => f.id) : []);
   const shown = filters.filter(f => !listed.has(f.id));
-  const people = listed.size ? peopleHtml(
-    named,
-    filters.find(isMyFilter)
-  ) : "";
+  const people = listed.size ? peopleHtml(named) : "";
   const labels = labelsHtml(board);
   const items = shown.map(f => ({
     person: isPersonFilter(f.id),
     html: `<button type="button" class="qf${isMyFilter(f) ? " me" : ""}" data-qf="${f.id}" aria-pressed="${state.quick.has(f.id)}" aria-busy="${state.filtersLoading.has(f.id)}" ` +
-      `title="${isMyFilter(f) ? "You · " : ""}${escapeHtml(f.description || f.query)}">${isMyFilter(f) ? myName(f.name) : escapeHtml(f.name)}</button>`,
+      `title="${isMyFilter(f) ? "You · " : ""}${escapeHtml(f.description || f.query)}">${isMyFilter(f) ? myFilterLabel(f) : escapeHtml(f.name)}</button>`,
   }));
   if (people) items.splice(shown.some(isMyFilter) ? 1 : 0, 0, { person: true, html: people });
   // The popover holds the previous rendering's filters: rebuilt from scratch, like the line.
@@ -1616,13 +1625,10 @@ function fitLanes() {
 // The board's width changes with the window and the zoom (the base size follows the screen width too).
 new ResizeObserver(fitLanes).observe($("board"));
 
-// The colleagues' filters as one list, the user's own first: a native list cannot show the avatars, which
-// tell apart people the board's filters name by a nickname. The button shows the one switched on.
-function peopleHtml(
-  named,
-  mine
-) {
-  const people = (mine ? [mine, ...named] : named).map(personEntry);
+// The colleagues' filters as one list: a native list cannot show the avatars, which tell apart people the
+// board's filters name by a nickname. The button shows the one switched on.
+function peopleHtml(named) {
+  const people = named.map(personEntry);
   const on = people.find(p => state.quick.has(p.id));
   state.peopleEntries = [{ id: null, name: "Everyone" }, ...people];
   if (state.peopleMenu) state.peopleMenu.options = state.peopleEntries;
@@ -1638,7 +1644,7 @@ function personEntry(filter) {
   const match = filter.query.match(ASSIGNEE_IS);
   const login = match[1] ?? match[2];
   const known = knownPeople().find(p => p.login.toLowerCase() === login.toLowerCase());
-  return { id: filter.id, name: filter.name, login, fullName: known?.name ?? filter.name, avatar: known?.avatar ?? null, me: isMyFilter(filter) };
+  return { id: filter.id, name: filter.name, login, fullName: known?.name ?? filter.name, avatar: known?.avatar ?? null };
 }
 
 function openPeopleMenu(open) {
@@ -1666,9 +1672,9 @@ function renderPeopleMenu() {
     const selected = p.id === null ? !anyOn : state.quick.has(p.id);
     const content = p.id === null
       ? `<span class="name">Everyone</span>`
-      : `${avatar(p.login, p.fullName, p.avatar)}<span class="name">${p.me ? myName(p.name) : escapeHtml(p.name)}</span>` +
+      : `${avatar(p.login, p.fullName, p.avatar)}<span class="name">${escapeHtml(p.name)}</span>` +
         `<span class="login">${escapeHtml(p.login)}</span>`;
-    const classes = [p.id === null ? "everyone" : "", p.me ? "me" : "", index === active ? "active" : ""].filter(Boolean).join(" ");
+    const classes = [p.id === null ? "everyone" : "", index === active ? "active" : ""].filter(Boolean).join(" ");
     return `<li role="option" id="people-option-${index}" data-index="${index}" class="${classes}" ` +
       `aria-selected="${selected}">${content}</li>`;
   }).join("");
