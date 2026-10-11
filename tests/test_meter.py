@@ -1,19 +1,19 @@
 import unittest
 from unittest import mock
 
-from jirafe.meter import RequestMeter
+from camelopard.meter import RequestMeter
 
 
 class RequestMeterTest(unittest.TestCase):
 
     def test_counts_by_window_and_origin(self):
         meter = RequestMeter()
-        with mock.patch("jirafe.meter.time.monotonic", return_value=0):
+        with mock.patch("camelopard.meter.time.monotonic", return_value=0):
             meter.record("sync")
-        with mock.patch("jirafe.meter.time.monotonic", return_value=240):
+        with mock.patch("camelopard.meter.time.monotonic", return_value=240):
             meter.record("page")
             meter.record("page")
-        with mock.patch("jirafe.meter.time.monotonic", return_value=250):
+        with mock.patch("camelopard.meter.time.monotonic", return_value=250):
             snapshot = meter.snapshot()
         self.assertEqual(
             snapshot["windows"]["1m"],
@@ -27,16 +27,16 @@ class RequestMeterTest(unittest.TestCase):
 
     def test_forgets_after_fifteen_minutes(self):
         meter = RequestMeter()
-        with mock.patch("jirafe.meter.time.monotonic", return_value=0):
+        with mock.patch("camelopard.meter.time.monotonic", return_value=0):
             meter.record("page")
-        with mock.patch("jirafe.meter.time.monotonic", return_value=16 * 60):
+        with mock.patch("camelopard.meter.time.monotonic", return_value=16 * 60):
             snapshot = meter.snapshot()
         self.assertEqual(snapshot["windows"]["15m"]["total"], 0)
         self.assertEqual(snapshot["sinceStart"], 1)
 
     def test_summary_keeps_only_the_totals(self):
         meter = RequestMeter()
-        with mock.patch("jirafe.meter.time.monotonic", return_value=0):
+        with mock.patch("camelopard.meter.time.monotonic", return_value=0):
             meter.record("page")
             snapshot = meter.snapshot(False)
         self.assertEqual(

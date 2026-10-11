@@ -8,10 +8,10 @@ import unittest
 from unittest import mock
 from http.server import ThreadingHTTPServer
 
-from jirafe.constants import BASE_DETAIL_FIELDS, DEFAULT_RECENT_MINUTES, IMAGE_MAX_AGE_S, MAX_ACTIVITY_DAYS
-from jirafe.handler import make_handler, relay_allowed
-from jirafe.meter import RequestMeter
-from jirafe.mirror import IssueMirror
+from camelopard.constants import BASE_DETAIL_FIELDS, DEFAULT_RECENT_MINUTES, IMAGE_MAX_AGE_S, MAX_ACTIVITY_DAYS
+from camelopard.handler import make_handler, relay_allowed
+from camelopard.meter import RequestMeter
+from camelopard.mirror import IssueMirror
 from tests.fakes import FakeJira, FakeUpstream, FakeWorkflow
 
 TOKEN = "secret-token"
@@ -441,7 +441,7 @@ class HandlerTest(unittest.TestCase):
         jira = self.mirror._jira
         jira.issues[0]["changelog"] = {"histories": []}
         # Copied ten minutes ago, then found unchanged by the pass that just ran.
-        with mock.patch("jirafe.mirror.time.time", return_value=time.time() - 600):
+        with mock.patch("camelopard.mirror.time.time", return_value=time.time() - 600):
             self.mirror.sync_board()
         self.mirror.sync_board()
         jira.paths.clear()
@@ -455,15 +455,15 @@ class HandlerTest(unittest.TestCase):
     def test_the_last_pass_vouches_for_a_copy_until_the_next_one_is_due(self):
         jira = self.mirror._jira
         jira.issues[0]["changelog"] = {"histories": []}
-        with mock.patch("jirafe.mirror.time.time", return_value=time.time() - 600):
+        with mock.patch("camelopard.mirror.time.time", return_value=time.time() - 600):
             self.mirror.sync_board()
         self.mirror.sync_board()
         checked = self.mirror.checked_at("ABC-1")
         jira.paths.clear()
-        with mock.patch("jirafe.handler.time.time", return_value=checked + self.mirror.checked_fresh_s - 1):
+        with mock.patch("camelopard.handler.time.time", return_value=checked + self.mirror.checked_fresh_s - 1):
             self.call("GET", "/issue/ABC-1?sync=1")
         self.assertEqual(jira.paths, [])
-        with mock.patch("jirafe.handler.time.time", return_value=checked + self.mirror.checked_fresh_s + 1):
+        with mock.patch("camelopard.handler.time.time", return_value=checked + self.mirror.checked_fresh_s + 1):
             self.call("GET", "/issue/ABC-1?sync=1")
         self.assertEqual(len(jira.paths), 1)
 

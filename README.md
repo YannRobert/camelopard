@@ -1,4 +1,4 @@
-# Jirafe
+# Camelopard
 
 [![CI](https://github.com/YannRobert/jirafe/actions/workflows/ci.yml/badge.svg)](https://github.com/YannRobert/jirafe/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -53,18 +53,19 @@ nothing is kept once it stops. `python3 demo/run.py --help` lists the options an
 
 ## Configuration
 
-Copy [`jirafe.example.json`](jirafe.example.json) to the user configuration directory, then adapt it:
+Copy [`camelopard.example.json`](camelopard.example.json) to the user configuration directory, then adapt it:
 
 | System | Configuration file |
 |---|---|
-| Linux | `$XDG_CONFIG_HOME/jirafe/config.json` (defaults to `~/.config/jirafe/config.json`) |
-| macOS | `~/Library/Application Support/jirafe/config.json` |
-| Windows | `%APPDATA%\jirafe\config.json` |
+| Linux | `$XDG_CONFIG_HOME/camelopard/config.json` (defaults to `~/.config/camelopard/config.json`) |
+| macOS | `~/Library/Application Support/camelopard/config.json` |
+| Windows | `%APPDATA%\camelopard\config.json` |
 
 Creating it takes a few minutes with a text editor:
 
 1. **Copy the template** from the repository root to the file of the table above, creating its directory
-   first. On Linux: `mkdir -p ~/.config/jirafe && cp jirafe.example.json ~/.config/jirafe/config.json`
+   first. On Linux:
+   `mkdir -p ~/.config/camelopard && cp camelopard.example.json ~/.config/camelopard/config.json`
 2. **`jiraHost`**: the address of Jira, as in your browser before `/browse/…` or `/secure/…`.
 3. **`boardId`**: open the board in Jira; it is the number after `rapidView=` in the address bar.
 4. **`fields`**: while logged in to Jira, open `<jiraHost>/rest/api/2/field` in the browser. It lists
@@ -120,7 +121,7 @@ Creating it takes a few minutes with a text editor:
 ## Running
 
 - **Windows**: double-click `open.cmd` (after running `setx JIRA_PAT "the-token"` once). For a
-  shortcut: right-click > Send to > Desktop, then rename it "Jirafe".
+  shortcut: right-click > Send to > Desktop, then rename it "Camelopard".
 - **Linux / macOS**: `./open.sh` (after adding `export JIRA_PAT="the-token"` to `~/.profile` or
   `~/.zshrc`).
 
@@ -128,7 +129,7 @@ The launcher finds Python, starts the server and opens the browser; launching it
 the board. Options are passed through (`./open.sh --port 9101`). Without a launcher:
 
 ```bash
-cd src && python3 -m jirafe --open
+cd src && python3 -m camelopard --open
 ```
 
 To keep the server running after the terminal closes (Linux / macOS): `./start.sh` starts it in the
@@ -151,9 +152,9 @@ Nothing here needs administrator rights: the server runs as you.
   Description=Sprint board
 
   [Service]
-  WorkingDirectory=%h/jirafe/src
+  WorkingDirectory=%h/camelopard/src
   EnvironmentFile=%h/.config/sprint-board.env
-  ExecStart=/usr/bin/python3 -u -m jirafe --quiet
+  ExecStart=/usr/bin/python3 -u -m camelopard --quiet
   Restart=on-failure
   RestartSec=10
   NoNewPrivileges=yes
@@ -174,7 +175,7 @@ Nothing here needs administrator rights: the server runs as you.
   CreateObject("WScript.Shell").Run "wsl.exe -d Ubuntu --exec sh -c ""XDG_RUNTIME_DIR=/run/user/$(id -u) systemctl --user start sprint-board.service; exec sleep infinity""", 0, False
   ```
 
-- **macOS**: a LaunchAgent, `~/Library/LaunchAgents/sprint-board.plist`, running `python3 -u -m jirafe --quiet`
+- **macOS**: a LaunchAgent, `~/Library/LaunchAgents/sprint-board.plist`, running `python3 -u -m camelopard --quiet`
   in the repository's `src` directory with `JIRA_PAT` in its `EnvironmentVariables`, and `RunAtLoad`
   set; then `launchctl load ~/Library/LaunchAgents/sprint-board.plist`. Keep the file `chmod 600`: it holds the token.
 - **Windows**: a shortcut to `open.cmd` in the startup folder (`Win+R`, `shell:startup`); it also opens
@@ -210,12 +211,12 @@ ignored, part of a word is enough). Keywords narrow a word to one field, and a l
 
 ```
 browser ──► http://localhost:8766 ──► Jira
-            (src/jirafe)              (JIRA_PAT as Bearer)
+            (src/camelopard)              (JIRA_PAT as Bearer)
 ```
 
 | Route | Purpose |
 |---|---|
-| `GET /` | the page (`src/jirafe/static/index.html`, configuration injected) |
+| `GET /` | the page (`src/camelopard/static/index.html`, configuration injected) |
 | `GET /jira/<path>` | relay to Jira, restricted to an allow-list of paths |
 | `GET /issue/<key>` | local copy of the issue; `?sync=1` resyncs it (`&force=1` ignores freshness) |
 | `GET /transitions/<key>` | transitions available from the issue's status, and the known paths to the others |
@@ -262,9 +263,9 @@ It is a cache: it can be deleted, and it rebuilds itself at the next launch.
 
 | System | Directory |
 |---|---|
-| Linux | `$XDG_CACHE_HOME/jirafe` (defaults to `~/.cache/jirafe`) |
-| macOS | `~/Library/Caches/jirafe` |
-| Windows | `%LOCALAPPDATA%\jirafe\cache` |
+| Linux | `$XDG_CACHE_HOME/camelopard` (defaults to `~/.cache/camelopard`) |
+| macOS | `~/Library/Caches/camelopard` |
+| Windows | `%LOCALAPPDATA%\camelopard\cache` |
 
 ## Security
 
@@ -282,9 +283,9 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 ```
 open.cmd, open.sh         Windows and Linux / macOS launchers
 start.sh, stop.sh         background server (Linux / macOS)
-jirafe.example.json       configuration template
+camelopard.example.json       configuration template
 demo/                     fake Jira and fictional boards (scenarios/), to try it without Jira
-src/jirafe/
+src/camelopard/
   app.py                  entry point: options, configuration, startup
   handler.py              HTTP routes and security checks
   upstream.py             connections to Jira (proxy, reuse)
@@ -319,4 +320,4 @@ python3 -m unittest
 
 [MIT](LICENSE).
 
-Jirafe is not affiliated with or endorsed by Atlassian. Jira is a registered trademark of Atlassian.
+Camelopard is not affiliated with or endorsed by Atlassian. Jira is a registered trademark of Atlassian.

@@ -1,22 +1,23 @@
 #!/bin/sh
-# Jirafe in the background (Linux / macOS): the server survives the terminal that started it, until stop.sh.
+# Camelopard in the background (Linux / macOS):
+# the server survives the terminal that started it, until stop.sh.
 # Starting it again while it runs does nothing. Options are passed to the server: ./start.sh --port 9101
 cd "$(dirname "$0")/src" || exit 1
 
 # Next to the local copy (paths.py, cache_dir): outside the repository, and a cache the system may clear.
 if [ "$(uname)" = "Darwin" ]; then
-  STATE_DIR="$HOME/Library/Caches/jirafe"
+  STATE_DIR="$HOME/Library/Caches/camelopard"
 else
   case "$XDG_CACHE_HOME" in
-    /*) STATE_DIR="$XDG_CACHE_HOME/jirafe" ;;
-    *) STATE_DIR="$HOME/.cache/jirafe" ;;
+    /*) STATE_DIR="$XDG_CACHE_HOME/camelopard" ;;
+    *) STATE_DIR="$HOME/.cache/camelopard" ;;
   esac
 fi
-PID_FILE="$STATE_DIR/jirafe.pid"
-LOG_FILE="$STATE_DIR/jirafe.log"
+PID_FILE="$STATE_DIR/camelopard.pid"
+LOG_FILE="$STATE_DIR/camelopard.log"
 
 if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
-  echo "Jirafe is already running (pid $(cat "$PID_FILE")): ./stop.sh to stop it."
+  echo "Camelopard is already running (pid $(cat "$PID_FILE")): ./stop.sh to stop it."
   exit 0
 fi
 
@@ -39,7 +40,7 @@ fi
 
 mkdir -p "$STATE_DIR" || exit 1
 # -u: without a terminal, Python buffers its output and the log would stay empty.
-nohup "$PYTHON" -u -m jirafe --quiet "$@" >"$LOG_FILE" 2>&1 </dev/null &
+nohup "$PYTHON" -u -m camelopard --quiet "$@" >"$LOG_FILE" 2>&1 </dev/null &
 echo $! >"$PID_FILE"
 
 # A server that cannot start (port taken, invalid configuration) exits at once: report it rather than a

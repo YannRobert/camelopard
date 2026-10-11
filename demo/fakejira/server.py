@@ -1,7 +1,8 @@
-"""A fake Jira Server, answering the requests Jirafe makes with the fictional board of a scenario.
+"""A fake Jira Server, answering the requests Camelopard makes with the fictional board of a scenario.
 
-Only what Jirafe reads and writes is served: anything else gets a 404, which shows at once when Jirafe starts
-using a new endpoint. Any bearer token is accepted.
+Only what Camelopard reads and writes is served:
+anything else gets a 404, which shows at once when Camelopard starts using a new endpoint.
+Any bearer token is accepted.
 """
 import json
 import random
@@ -50,7 +51,7 @@ class FakeJiraServer(ThreadingHTTPServer):
 
 class FakeJiraHandler(BaseHTTPRequestHandler):
 
-    # Jirafe keeps its connections to Jira open: every response carries its Content-Length.
+    # Camelopard keeps its connections to Jira open: every response carries its Content-Length.
     protocol_version = "HTTP/1.1"
 
     def do_GET(self):
@@ -240,7 +241,8 @@ def simulate_colleagues(
         server,
         interval_s
 ):
-    """Changes made by other people at random intervals: what Jirafe's live refresh and notifications show."""
+    """Changes made by other people at random intervals:
+    what Camelopard's live refresh and notifications show."""
     rng = random.Random()
     while True:
         time.sleep(interval_s * rng.uniform(1 - ACTIVITY_JITTER, 1 + ACTIVITY_JITTER))
@@ -277,6 +279,7 @@ def start(
 BROWSE_PAGE = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>{key} · demo Jira</title>
 <style>body{{font-family:sans-serif;max-width:40rem;margin:4rem auto;padding:0 1rem;color:#172b4d}}</style></head>
-<body><h1>{key}</h1><p>This issue lives in Jirafe's demo Jira: a fake Jira Server with a fictional team and
-board, made for trying Jirafe out. There is no Jira page to show it.</p></body></html>
+<body><h1>{key}</h1><p>This issue lives in Camelopard's demo Jira:
+a fake Jira Server with a fictional team and board, made for trying Camelopard out.
+There is no Jira page to show it.</p></body></html>
 """

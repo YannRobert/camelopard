@@ -1,6 +1,6 @@
-"""Jirafe: the Jira board of the current sprint, served from a local copy.
+"""Camelopard: the Jira board of the current sprint, served from a local copy.
 
-The page (jirafe/static/index.html) only talks to this server:
+The page (camelopard/static/index.html) only talks to this server:
     /jira/<path>          →  <jira>/<path>   (relay, JIRA_PAT as a Bearer header)
     /issue/<key>          →  local copy of the issue (mirror), without calling Jira
     /issue/<key>?sync=1   →  resyncs the issue from Jira, then returns it — unless the local copy is less
@@ -30,7 +30,7 @@ since the previous pass.
 Usage:
     ./open.sh                                       # Linux / macOS: starts the server and opens the browser
     open.cmd                                        # Windows: same
-    cd src && python3 -m jirafe --board 42 --port 9101
+    cd src && python3 -m camelopard --board 42 --port 9101
 
 Portable across Windows / Linux / macOS, standard library only. Every file is read and written as explicit
 UTF-8: on Windows, the default encoding is cp1252.
@@ -55,7 +55,7 @@ from .paths import cache_dir, default_config_file
 from .upstream import UpstreamPool
 
 
-class JirafeServer(ThreadingHTTPServer):
+class CamelopardServer(ThreadingHTTPServer):
     # On Windows, SO_REUSEADDR lets a second process listen on a port already taken, without error: two
     # servers would then share the requests. Elsewhere, it only avoids waiting after a shutdown.
     allow_reuse_address = os.name != "nt"
@@ -69,7 +69,7 @@ def main():
             encoding="utf-8",
             errors="replace"
         )
-    parser = argparse.ArgumentParser(prog="jirafe", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(prog="camelopard", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="local listening port (default: %(default)s)")
     parser.add_argument("--config", type=Path, help=f"JSON configuration file (default: {default_config_file()})")
     parser.add_argument("--jira-host", help="URL of the Jira instance (overrides jiraHost from the configuration)")
@@ -95,7 +95,7 @@ def main():
     if not jira_host or not board_id:
         sys.exit(
             f"Jira instance and board to specify: in {args.config or default_config_file()} "
-            "(template: jirafe.example.json) or with --jira-host and --board."
+            "(template: camelopard.example.json) or with --jira-host and --board."
         )
     jira_token = os.environ.get("JIRA_PAT")
     if not jira_token:
@@ -127,7 +127,7 @@ def main():
         args.watch_interval
     )
     try:
-        server = JirafeServer(
+        server = CamelopardServer(
             ("127.0.0.1", args.port),
             make_handler(
                 settings,
@@ -137,8 +137,8 @@ def main():
             )
         )
     except OSError as error:
-        # Port taken: most often, Jirafe is already running (second double-click on the launcher).
-        print(f"Port {args.port} unavailable ({error.strerror}): Jirafe is probably already running.")
+        # Port taken: most often, Camelopard is already running (second double-click on the launcher).
+        print(f"Port {args.port} unavailable ({error.strerror}): Camelopard is probably already running.")
         if args.open:
             webbrowser.open(f"http://localhost:{args.port}")
             return
@@ -148,7 +148,7 @@ def main():
         args=(mirror, args.sync_interval, args.quiet),
         daemon=True
     ).start()
-    print(f"Jirafe, the sprint board: http://localhost:{args.port}")
+    print(f"Camelopard, the sprint board: http://localhost:{args.port}")
     print(f"Local copy of issues: {mirror.status()['directory']}")
     # The server is already listening (the constructor opened the port): the page never hits a refused connection.
     if args.open:

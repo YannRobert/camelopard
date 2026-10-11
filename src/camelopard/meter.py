@@ -6,7 +6,7 @@ from .constants import METER_WINDOWS_S
 
 
 class RequestMeter:
-    """Timestamp of every request sent to Jira, kept for 15 minutes: enough to check that Jirafe does not
+    """Timestamp of every request sent to Jira, kept for 15 minutes: enough to check that Camelopard does not
     flood the server, and to compare it with what the same browsing would cost in Jira itself."""
 
     def __init__(self):

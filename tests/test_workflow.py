@@ -2,8 +2,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from jirafe.constants import MAX_TRANSITION_STEPS
-from jirafe.workflow import Workflows, workflow_of
+from camelopard.constants import MAX_TRANSITION_STEPS
+from camelopard.workflow import Workflows, workflow_of
 
 
 def transitions(*statuses):

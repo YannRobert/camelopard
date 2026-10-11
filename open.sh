@@ -1,5 +1,5 @@
 #!/bin/sh
-# Jirafe: starts the local server and opens the board in the browser (Linux / macOS).
+# Camelopard: starts the local server and opens the board in the browser (Linux / macOS).
 # Launching it again does not start another server: it only reopens the board.
 # Options are passed to the server, for instance: ./open.sh --port 9101
 cd "$(dirname "$0")/src" || exit 1
@@ -21,4 +21,4 @@ else
   exit 1
 fi
 
-exec "$PYTHON" -m jirafe --open --quiet "$@"
+exec "$PYTHON" -m camelopard --open --quiet "$@"

@@ -50,7 +50,7 @@ COLUMNS = (
     ("Done", ("10001",)),
 )
 # From status: [(transition id, transition name, to status)]. To Do only reaches Done through every other
-# status: dropping a card from the first column on the last one shows Jirafe walking the workflow.
+# status: dropping a card from the first column on the last one shows Camelopard walking the workflow.
 WORKFLOW = {
     "1": [("11", "Start progress", "3")],
     "3": [("21", "Request review", "10100"), ("31", "Stop progress", "1")],

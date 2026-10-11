@@ -1,8 +1,8 @@
-"""Jirafe constants, gathered in one place rather than hard-coded in each module."""
+"""Camelopard constants, gathered in one place rather than hard-coded in each module."""
 import re
 from pathlib import Path
 
-APP_NAME = "jirafe"
+APP_NAME = "camelopard"
 CONFIG_FILE_NAME = "config.json"
 DEFAULT_PORT = 8766
 # Content-Encoding: gzip responses are relayed as is, the browser decompresses them.

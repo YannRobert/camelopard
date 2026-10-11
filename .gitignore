@@ -5,5 +5,6 @@ __pycache__/
 .idea/
 .vscode/
 .DS_Store
-# Instance-specific configuration, if kept here rather than in ~/.config/jirafe: see jirafe.example.json.
-/jirafe.json
+# Instance-specific configuration, if kept here rather than in ~/.config/camelopard:
+# see camelopard.example.json.
+/camelopard.json

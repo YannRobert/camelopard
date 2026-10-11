@@ -1,4 +1,4 @@
-"""The demo's fake Jira, read by Jirafe's own client and local copy: when Jirafe reads something new from Jira,
+"""The demo's fake Jira, read by Camelopard's own client and local copy: when Camelopard reads something new from Jira,
 these tests say whether the demo still serves it."""
 import json
 import random
@@ -10,11 +10,11 @@ import unittest
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from jirafe.jira import JiraClient
-from jirafe.meter import RequestMeter
-from jirafe.mirror import IssueMirror, detail_fields
-from jirafe.upstream import UpstreamPool
-from jirafe.workflow import workflow_of
+from camelopard.jira import JiraClient
+from camelopard.meter import RequestMeter
+from camelopard.mirror import IssueMirror, detail_fields
+from camelopard.upstream import UpstreamPool
+from camelopard.workflow import workflow_of
 
 sys.path.insert(
     0,
@@ -167,7 +167,8 @@ class DemoJiraTest(unittest.TestCase):
 
 
 class DemoScenariosTest(unittest.TestCase):
-    """What every scenario must give Jirafe, whatever its board: the tests above only know the default one."""
+    """What every scenario must give Camelopard, whatever its board:
+    the tests above only know the default one."""
 
     def serve(self, scenario):
         jira = fakejira.FakeJiraServer(

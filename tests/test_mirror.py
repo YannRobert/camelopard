@@ -4,8 +4,8 @@ import unittest
 from unittest import mock
 from urllib.parse import parse_qs, urlsplit
 
-from jirafe.constants import ACTIVITY_COMMENT_LENGTH, BASE_DETAIL_FIELDS, WATCH_TTL_S
-from jirafe.mirror import IssueMirror, detail_fields, issue_changes, slim_history
+from camelopard.constants import ACTIVITY_COMMENT_LENGTH, BASE_DETAIL_FIELDS, WATCH_TTL_S
+from camelopard.mirror import IssueMirror, detail_fields, issue_changes, slim_history
 from tests.fakes import FakeJira
 
 HISTORY = {
@@ -120,9 +120,9 @@ class IssueMirrorTest(unittest.TestCase):
 
     def test_full_pass_once_a_day(self):
         mirror = self.mirror()
-        with mock.patch("jirafe.mirror.time.time", return_value=1_000_000):
+        with mock.patch("camelopard.mirror.time.time", return_value=1_000_000):
             mirror.sync_board()
-        with mock.patch("jirafe.mirror.time.time", return_value=1_000_000 + 25 * 3600):
+        with mock.patch("camelopard.mirror.time.time", return_value=1_000_000 + 25 * 3600):
             mirror.sync_board()
         self.assertNotIn("updated", self.jqls()[1])
 
@@ -181,7 +181,7 @@ class IncrementalPassTest(unittest.TestCase):
         self.jira.issues[1] = {"key": "ABC-2", "fields": {"updated": "2026-01-02T11:00:00.000+0100", "summary": "New"}}
         # A minute later: still an incremental pass.
         later = time.time() + 60
-        with mock.patch("jirafe.mirror.time.time", return_value=later):
+        with mock.patch("camelopard.mirror.time.time", return_value=later):
             self.assertEqual(self.mirror.sync_board(), 1)
         light, whole = self.queries()
         self.assertEqual(whole["jql"], ["key in (ABC-2)"])
@@ -193,14 +193,14 @@ class IncrementalPassTest(unittest.TestCase):
         # 10:00 +0100 on 2026-01-02, then ABC-2 changes an hour later.
         ten = 1_767_344_400_000
         self.jira.issues[1] = {"key": "ABC-2", "fields": {"updated": "2026-01-02T11:00:00.000+0100"}}
-        with mock.patch("jirafe.mirror.time.time", return_value=ten / 1000 + 60):
+        with mock.patch("camelopard.mirror.time.time", return_value=ten / 1000 + 60):
             self.assertEqual(self.mirror.recently_updated(15), {"ABC-1": ten, "ABC-2": ten})
         self.mirror.sync_board()
-        with mock.patch("jirafe.mirror.time.time", return_value=ten / 1000 + 3600 + 60):
+        with mock.patch("camelopard.mirror.time.time", return_value=ten / 1000 + 3600 + 60):
             self.assertEqual(self.mirror.recently_updated(15), {"ABC-2": ten + 3_600_000})
 
     def test_issues_checked_by_the_last_pass(self):
-        with mock.patch("jirafe.mirror.time.time", return_value=1_800_000_000):
+        with mock.patch("camelopard.mirror.time.time", return_value=1_800_000_000):
             self.mirror.sync_board()
         self.assertEqual(self.mirror.checked_at("ABC-1"), 1_800_000_000)
         self.assertIsNone(self.mirror.checked_at("ABC-404"))
@@ -226,7 +226,7 @@ class IncrementalPassTest(unittest.TestCase):
             42,
             BASE_DETAIL_FIELDS
         )
-        with mock.patch("jirafe.mirror.time.time", return_value=ten / 1000 + 90):
+        with mock.patch("camelopard.mirror.time.time", return_value=ten / 1000 + 90):
             self.assertEqual(restarted.recently_updated(2), {"ABC-1": ten, "ABC-2": ten})
             self.assertEqual(restarted.recently_updated(1), {})
         self.assertEqual(self.jira.paths, [])
@@ -250,10 +250,10 @@ class IncrementalPassTest(unittest.TestCase):
 
     def test_watched_until_the_page_stops_asking(self):
         self.assertFalse(self.mirror.watched())
-        with mock.patch("jirafe.mirror.time.monotonic", return_value=1000):
+        with mock.patch("camelopard.mirror.time.monotonic", return_value=1000):
             self.mirror.watch()
             self.assertTrue(self.mirror.watched())
-        with mock.patch("jirafe.mirror.time.monotonic", return_value=1000 + WATCH_TTL_S):
+        with mock.patch("camelopard.mirror.time.monotonic", return_value=1000 + WATCH_TTL_S):
             self.assertFalse(self.mirror.watched())
 
 

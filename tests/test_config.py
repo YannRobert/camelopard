@@ -2,14 +2,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from jirafe.config import ConfigError, load_config
+from camelopard.config import ConfigError, load_config
 
 
 class LoadConfigTest(unittest.TestCase):
 
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
-        self.path = Path(self.directory.name) / "jirafe.json"
+        self.path = Path(self.directory.name) / "camelopard.json"
 
     def tearDown(self):
         self.directory.cleanup()

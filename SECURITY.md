@@ -1,6 +1,6 @@
 # Security
 
-Jirafe handles a JIRA personal access token: a flaw can expose the user's JIRA data, or even let
+Camelopard handles a JIRA personal access token: a flaw can expose the user's JIRA data, or even let
 someone write on their behalf.
 
 ## Reporting a vulnerability

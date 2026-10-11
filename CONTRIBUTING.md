@@ -1,4 +1,4 @@
-# Contributing to Jirafe
+# Contributing to Camelopard
 
 Thanks for your interest! Issues and pull requests are welcome.
 
@@ -13,15 +13,15 @@ Thanks for your interest! Issues and pull requests are welcome.
 
 ```bash
 export JIRA_PAT="the-token"
-cd src && python3 -m jirafe --port 9101
+cd src && python3 -m camelopard --port 9101
 ```
 
-Without access to a Jira, `python3 demo/run.py` runs Jirafe against a fake one (see `demo/`), with the
+Without access to a Jira, `python3 demo/run.py` runs Camelopard against a fake one (see `demo/`), with the
 same page and server. `--scenario supplier` serves a heavy board instead (300 issues, 16 columns, 24
 people, 42 quick filters, long specifications and comment threads): check a page change there too, so it
 holds up on crowded boards without getting in the way on simple ones.
 
-The page is re-read on every request: a change to `src/jirafe/static/index.html` shows up on the next
+The page is re-read on every request: a change to `src/camelopard/static/index.html` shows up on the next
 reload, without restarting the server.
 
 ## Checking

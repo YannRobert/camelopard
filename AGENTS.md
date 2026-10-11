@@ -32,10 +32,10 @@ file lists what must be respected when changing it.
 
 ## Layout
 
-- `src/jirafe/`: the package, run with `python -m jirafe` from `src/` (the launchers do it). No
+- `src/camelopard/`: the package, run with `python -m camelopard` from `src/` (the launchers do it). No
   `pyproject.toml`: nothing gets installed. One module per responsibility (see README, "Layout");
   relative imports between modules.
-- `src/jirafe/static/index.html`: HTML, CSS and JS in a single file. The public configuration
+- `src/camelopard/static/index.html`: HTML, CSS and JS in a single file. The public configuration
   (`jiraWeb`, `boardId`, `fields`, `views`) is injected in place of the `__CONFIG__` marker.
 - An extra custom field is added as a **role**: in `FIELD_ROLES`, in the page (through
   `custom(f, "role")`), and in the README roles table.
@@ -72,5 +72,5 @@ python3 -m unittest
 
 The tests (`tests/`, `unittest` only, no network) cover the configuration, the local copy and the
 server's security checks: every new route or write adds its own. The page has no automated tests: run it
-(`cd src && JIRA_PAT=… python3 -m jirafe --port 9101`) and check the board, the detail panel and the
+(`cd src && JIRA_PAT=… python3 -m camelopard --port 9101`) and check the board, the detail panel and the
 `/stats` counter in the browser.

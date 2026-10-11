@@ -1,24 +1,24 @@
 #!/bin/sh
-# Stops the Jirafe server started by start.sh.
+# Stops the Camelopard server started by start.sh.
 
 # Same location as start.sh.
 if [ "$(uname)" = "Darwin" ]; then
-  STATE_DIR="$HOME/Library/Caches/jirafe"
+  STATE_DIR="$HOME/Library/Caches/camelopard"
 else
   case "$XDG_CACHE_HOME" in
-    /*) STATE_DIR="$XDG_CACHE_HOME/jirafe" ;;
-    *) STATE_DIR="$HOME/.cache/jirafe" ;;
+    /*) STATE_DIR="$XDG_CACHE_HOME/camelopard" ;;
+    *) STATE_DIR="$HOME/.cache/camelopard" ;;
   esac
 fi
-PID_FILE="$STATE_DIR/jirafe.pid"
+PID_FILE="$STATE_DIR/camelopard.pid"
 
 if [ ! -f "$PID_FILE" ]; then
-  echo "Jirafe is not running (no $PID_FILE)."
+  echo "Camelopard is not running (no $PID_FILE)."
   exit 0
 fi
 PID="$(cat "$PID_FILE")"
 if ! kill -0 "$PID" 2>/dev/null; then
-  echo "Jirafe was no longer running (pid $PID)."
+  echo "Camelopard was no longer running (pid $PID)."
   rm -f "$PID_FILE"
   exit 0
 fi
@@ -33,4 +33,4 @@ if kill -0 "$PID" 2>/dev/null; then
   kill -9 "$PID"
 fi
 rm -f "$PID_FILE"
-echo "Jirafe stopped (pid $PID)."
+echo "Camelopard stopped (pid $PID)."

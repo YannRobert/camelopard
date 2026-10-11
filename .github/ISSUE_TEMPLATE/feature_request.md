@@ -8,4 +8,4 @@ labels: enhancement
 
 **The suggested solution**
 
-**Cost in JIRA requests** (Jirafe tries to make as few as possible)
+**Cost in JIRA requests** (Camelopard tries to make as few as possible)

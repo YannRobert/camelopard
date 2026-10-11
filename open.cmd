@@ -1,5 +1,5 @@
 @echo off
-rem Jirafe: starts the local server and opens the board in the browser.
+rem Camelopard: starts the local server and opens the board in the browser.
 rem Shortcut: right-click this file > Send to > Desktop (create shortcut).
 rem Launching it again does not start another server: it only reopens the board.
 rem Options are passed to the server, for instance: open.cmd --port 9101
@@ -27,7 +27,7 @@ if not defined PYTHON (
   exit /b 1
 )
 
-title Jirafe
-echo Jirafe runs as long as this window stays open.
-%PYTHON% -m jirafe --open --quiet %*
+title Camelopard
+echo Camelopard runs as long as this window stays open.
+%PYTHON% -m camelopard --open --quiet %*
 if errorlevel 1 pause

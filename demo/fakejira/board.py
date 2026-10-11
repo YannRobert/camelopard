@@ -2,7 +2,7 @@
 
 Built once at startup from a scenario's dataset, every date placed relative to that moment, then changed by the page's
 writes (rank, assignee, transitions) and by the simulated colleagues. Answers in the shape of Jira Server's
-JSON, limited to what Jirafe reads.
+JSON, limited to what Camelopard reads.
 """
 import html
 import random
@@ -642,7 +642,7 @@ class Board:
             start,
             size
     ):
-        """rest/api/2/search, for the queries Jirafe's background sync makes, nothing more."""
+        """rest/api/2/search, for the queries Camelopard's background sync makes, nothing more."""
         with self._lock:
             keys = KEY_IN.match(jql)
             sprints = SPRINT_IN.match(jql)
@@ -656,7 +656,7 @@ class Board:
                     since = datetime.now().astimezone() - timedelta(minutes=int(sprints.group(3)))
                     issues = [issue for issue in issues if issue["updated"] >= since]
             else:
-                raise JiraRefusal([f"The demo Jira only understands the queries Jirafe makes, not: {jql}"])
+                raise JiraRefusal([f"The demo Jira only understands Camelopard's queries, not: {jql}"])
             return {
                 "startAt": start,
                 "maxResults": size,
