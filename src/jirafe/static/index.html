@@ -29,7 +29,9 @@ try {
     --border: #4a4239;
     --text: #ebe2d6;
     --muted: #b5a797;
-    --faint: #857868;
+    --faint: #ab9c8a;
+    /* Decoration only (rings, dots, the grip): too pale for text. */
+    --faint-mark: #857868;
     --link: #f2b65e;
     --accent: #e8a33d;
     --accent-fg: #171411;
@@ -43,6 +45,7 @@ try {
     --panel-shadow: -8px 0 32px -8px rgba(0, 0, 0, .6);
     --panel-shadow-left: 8px 0 32px -8px rgba(0, 0, 0, .6);
     --recent: #f5b84a;
+    --error-bg: #4a2219; --error-fg: #ffb4a3;
     /* Raised above the cards it covers: lighter than them in the dark theme, white in the light one. */
     --popover: #463f36;
     --popover-shadow: 0 12px 32px rgba(0, 0, 0, .6);
@@ -56,7 +59,8 @@ try {
     --border: #e2d7c7;
     --text: #2b2118;
     --muted: #6f5f4e;
-    --faint: #9a8a77;
+    --faint: #7a6a58;
+    --faint-mark: #9a8a77;
     --link: #a35f0a;
     --accent: #c9791b;
     --accent-fg: #ffffff;
@@ -68,6 +72,7 @@ try {
     --status-done: #dcf3e3; --status-done-fg: #1d6b3a;
     --shadow: 0 1px 2px rgba(60, 40, 20, .18);
     --panel-shadow: -8px 0 32px -8px rgba(60, 40, 20, .3);
+    --error-bg: #ffebe6; --error-fg: #bf2600;
     --panel-shadow-left: 8px 0 32px -8px rgba(60, 40, 20, .3);
     --recent: #d9860f;
     --popover: #ffffff;
@@ -347,7 +352,7 @@ try {
   }
   .people-menu[hidden] { display: none; }
   .people-menu li { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.7rem; cursor: pointer; white-space: nowrap; }
-  .people-menu li.active { background: var(--card-hover); }
+  .people-menu li.active, .picker li.active { background: var(--chip); box-shadow: inset 3px 0 0 var(--accent); }
   .people-menu li[aria-selected="true"] .name { color: var(--accent); font-weight: 600; }
   .people-menu li[aria-selected="true"] .name::after { content: " ✓"; }
   /* The user, as on their own button: horns and accent, their login like everyone's. */
@@ -444,7 +449,7 @@ try {
   .drag-ghost[data-hint]::after {
     content: attr(data-hint); position: absolute; left: 50%; top: 100%; transform: translate(-50%, 0.4rem);
     white-space: nowrap; font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 3px;
-    background: var(--red); color: #fff;
+    background: var(--red); color: var(--accent-fg);
   }
   .column.drag-origin { background: color-mix(in srgb, var(--accent) 7%, var(--column)); }
   .column.drag-refused { outline: 2px dashed var(--red); outline-offset: -2px; }
@@ -474,7 +479,7 @@ try {
   .card .id { display: flex; align-items: center; gap: 0.15rem; min-width: 0; }
   .card .grip {
     flex: none; display: grid; place-items: center; width: 1.1rem; height: 1.25rem; margin-left: -0.35rem;
-    border-radius: 3px; color: var(--faint); opacity: 0.35; cursor: move; user-select: none; touch-action: none;
+    border-radius: 3px; color: var(--faint-mark); opacity: 0.35; cursor: move; user-select: none; touch-action: none;
   }
   .card .foot .grip { margin-left: auto; margin-right: -0.35rem; }
   .card .grip svg { width: 0.6rem; height: 0.95rem; }
@@ -502,7 +507,7 @@ try {
     display: grid; place-items: center; font-size: 0.65rem; font-weight: 700; color: #fff;
     background: var(--avatar-bg, #5b6b7c); letter-spacing: 0.02em;
     /* Outline: a thin gap in the card's colour, then a ring, detach the photo from the background. */
-    box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--faint);
+    box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--faint-mark);
   }
   .avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   /* Unassigned: silhouette and "?" in ochre on a dashed circle. Stands out at a glance among solid avatars,
@@ -518,7 +523,7 @@ try {
   }
   .empty-col { color: var(--faint); font-size: 0.8rem; text-align: center; padding: 0.8rem 0; }
   .skeleton { color: var(--muted); padding: 2rem; text-align: center; }
-  .error-banner { margin: 0 1.2rem 0.6rem; padding: 0.5rem 0.8rem; border-radius: 3px; background: #ffebe6; color: #bf2600; }
+  .error-banner { margin: 0 1.2rem 0.6rem; padding: 0.5rem 0.8rem; border-radius: 3px; background: var(--error-bg); color: var(--error-fg); }
   .error-banner.info { background: var(--chip); color: var(--text); }
 
   /* ---------- Detail panel ---------- */
@@ -538,7 +543,7 @@ try {
   }
   aside .grip { display: none; }
   aside.bottom .grip {
-    display: block; position: absolute; left: 0; right: 0; top: -4px; height: 8px; z-index: 2; cursor: row-resize;
+    display: block; position: absolute; left: 0; right: 0; top: -4px; height: 8px; z-index: 2; cursor: row-resize; touch-action: none;
   }
   aside.bottom .grip::after {
     content: ""; position: absolute; left: 50%; top: 2px; width: 3rem; height: 4px; margin-left: -1.5rem;
@@ -584,10 +589,8 @@ try {
   aside .jump { position: absolute; right: 1.2rem; bottom: 1.2rem; z-index: 3; display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem; }
   aside .jump .sections {
     display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 0.7rem; overflow: hidden;
-    background: color-mix(in srgb, var(--card) 82%, transparent); backdrop-filter: blur(6px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); opacity: 0.8; transition: opacity 0.15s;
+    background: var(--card); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
-  aside .jump .sections:hover, aside .jump .sections:focus-within { opacity: 1; }
   aside .jump .sections:empty { display: none; }
   aside .jump .sections button {
     display: flex; justify-content: space-between; gap: 0.8rem; border: 0; background: none; padding: 0.4rem 0.85rem;
@@ -629,7 +632,7 @@ try {
   aside .facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.45rem 1.2rem; align-items: center; margin: 0; padding: 0.6rem 0; font-size: 0.85rem; }
   aside .facts + .facts { border-top: 1px solid var(--border); }
   /* Smaller avatars in the fields: a "person" line keeps the height of the others. */
-  aside .facts .avatar { width: 1.3rem; height: 1.3rem; font-size: 0.5rem; box-shadow: 0 0 0 1.5px var(--bg), 0 0 0 2.5px var(--faint); }
+  aside .facts .avatar { width: 1.3rem; height: 1.3rem; font-size: 0.5rem; box-shadow: 0 0 0 1.5px var(--bg), 0 0 0 2.5px var(--faint-mark); }
   aside .facts:first-of-type { padding-top: 0; }
   aside .links { list-style: none; margin: 0; padding: 0; font-size: 0.85rem; }
   aside .links li { display: flex; align-items: center; gap: 0.45rem; padding: 0.35rem 0; border-top: 1px solid var(--border); min-width: 0; }
@@ -659,7 +662,6 @@ try {
   }
   .picker li { display: flex; align-items: center; gap: 0.45rem; padding: 0.3rem 0.6rem; cursor: pointer; }
   .picker li:hover { background: var(--card-hover); }
-  .picker li.active { background: var(--selected); }
   .picker li.current .name::after { content: " ✓"; color: var(--accent); }
   .picker li .login { margin-left: auto; padding-left: 0.6rem; color: var(--faint); font-size: 0.75rem; }
   .picker li.search .name { color: var(--link); }
@@ -684,7 +686,7 @@ try {
   .move-dialog li { position: relative; display: flex; align-items: center; gap: 0.7rem; padding: 0.3rem 0 0.3rem 1.6rem; }
   .move-dialog li::before {
     content: ""; position: absolute; left: 0.35rem; top: 50%; width: 0.6rem; height: 0.6rem; margin-top: -0.3rem;
-    border-radius: 50%; background: var(--faint);
+    border-radius: 50%; background: var(--faint-mark);
   }
   .move-dialog li:not(:last-child)::after {
     content: ""; position: absolute; left: calc(0.65rem - 1px); top: calc(50% + 0.4rem); height: calc(100% - 0.8rem);
@@ -2335,7 +2337,7 @@ function relative(at) {
 }
 
 function showError(message) {
-  $("errors").insertAdjacentHTML("beforeend", `<div class="error-banner">${escapeHtml(message)}</div>`);
+  $("errors").insertAdjacentHTML("beforeend", `<div class="error-banner" role="alert">${escapeHtml(message)}</div>`);
 }
 
 function escapeHtml(value) {
@@ -3653,6 +3655,10 @@ function hideTooltip() {
 // a column with none leading to it gets a red outline, and a card dropped there goes back to its place.
 const DRAG_THRESHOLD_PX = 5;
 const DRAG_ANIMATION_MS = 160;
+// Asked by the system: the card lands and the panel scrolls at once, without the motion.
+const REDUCED_MOTION = window.matchMedia("(prefers-reduced-motion: reduce)");
+const motionMs = ms => REDUCED_MOTION.matches ? 0 : ms;
+const scrollBehavior = () => REDUCED_MOTION.matches ? "auto" : "smooth";
 // Near the top or bottom edge of the board, it scrolls by itself, faster as the pointer gets closer.
 const AUTO_SCROLL_EDGE_PX = 60;
 const AUTO_SCROLL_MAX_PX = 18;
@@ -3719,7 +3725,7 @@ function startDrag() {
   // Lift: the card grows a little and tilts, for a beat.
   drag.ghost.animate(
     [{ transform: "rotate(0) scale(1)" }, { transform: "rotate(2deg) scale(1.03)" }],
-    { duration: DRAG_ANIMATION_MS, easing: "ease-out" }
+    { duration: motionMs(DRAG_ANIMATION_MS), easing: "ease-out" }
   );
   card.classList.add("placeholder");
   card.closest(".column").classList.add("drag-origin");
@@ -3919,7 +3925,7 @@ function movePlaceholder(
     if (dx || dy) {
       el.animate(
         [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }],
-        { duration: DRAG_ANIMATION_MS, easing: "ease-out" }
+        { duration: motionMs(DRAG_ANIMATION_MS), easing: "ease-out" }
       );
     }
   }
@@ -3965,7 +3971,7 @@ function dropCard(cancelled) {
       { transform: "rotate(2deg) scale(1.03)" },
       { transform: `translate(${target.left - from.left - (from.width - target.width) / 2}px, ${target.top - from.top - (from.height - target.height) / 2}px)` },
     ],
-    { duration: DRAG_ANIMATION_MS, easing: "ease-in-out", fill: "forwards" }
+    { duration: motionMs(DRAG_ANIMATION_MS), easing: "ease-in-out", fill: "forwards" }
   );
   landing.finished.catch(() => null).then(() => {
     ghost.remove();
@@ -4143,6 +4149,7 @@ async function write(
 function flashError(message) {
   const banner = document.createElement("div");
   banner.className = "error-banner";
+  banner.setAttribute("role", "alert");
   banner.textContent = message;
   $("errors").append(banner);
   setTimeout(() => banner.remove(), ERROR_FLASH_MS);
@@ -4483,7 +4490,7 @@ $("panel-content").addEventListener("scroll", () => {
   $("panel-top").classList.toggle("shown", panelScrollers().some(el => el.scrollTop > el.clientHeight * 0.6));
 }, { passive: true, capture: true });
 $("panel-top").addEventListener("click", () => {
-  for (const el of panelScrollers()) el.scrollTo({ top: 0, behavior: "smooth" });
+  for (const el of panelScrollers()) el.scrollTo({ top: 0, behavior: scrollBehavior() });
 });
 
 // Detail table of contents: the sections present in the displayed issue, with their number of entries.
@@ -4512,7 +4519,7 @@ function jumpTo(id) {
   if (!heading) return;
   const scroller = [...content.children].find(el => el.contains(heading) && getComputedStyle(el).overflowY === "auto") ?? content;
   const top = heading.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - 12;
-  scroller.scrollTo({ top, behavior: "smooth" });
+  scroller.scrollTo({ top, behavior: scrollBehavior() });
 }
 
 // Preview of attached images: shown after a short hover delay (a quick pass loads nothing), placed on the
