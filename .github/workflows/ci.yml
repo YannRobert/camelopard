@@ -33,6 +33,17 @@ jobs:
       - name: Test
         run: python -m unittest -v
 
+  # The page's pure logic, with Node's built-in runner (tests/js): nothing to install.
+  javascript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Test
+        run: node --test tests/js/
+
   # Share of the server's lines the tests run: shown on the run's summary, and a floor a change may not
   # lower the total under.
   coverage:

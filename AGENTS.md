@@ -38,8 +38,11 @@ file lists what must be respected when changing it.
 - `src/camelopard/`: the package, run with `python -m camelopard` from `src/` (the launchers do it). No
   `pyproject.toml`: nothing gets installed. One module per responsibility (see README, "Layout");
   relative imports between modules.
-- `src/camelopard/static/index.html`: HTML, CSS and JS in a single file. The public configuration
-  (`jiraWeb`, `boardId`, `fields`, `views`) is injected in place of the `__CONFIG__` marker.
+- `src/camelopard/static/`: the page, as the browser loads it, with no build step. `index.html` is its
+  structure; the public configuration (`jiraWeb`, `boardId`, `fields`, `views`) is injected in place of the
+  `__CONFIG__` marker. `page.css` its look, `page.mjs` its behaviour, `logic.mjs` the pure logic (no DOM,
+  no state, no request) the page imports and `tests/js` tests. A new file there is added to `PAGE_FILES`,
+  the only names served under `/static/`.
 - An extra custom field is added as a **role**: in `FIELD_ROLES`, in the page (through
   `custom(f, "role")`), and in the README roles table.
 - `demo/`: a fake Jira Server (`fakejira/`) serving a fictional board (one package per board in `scenarios/`,
@@ -82,6 +85,13 @@ user sees or presses adds or updates a scenario there. They need Playwright, ski
 ```bash
 python3 -m pip install -r requirements-dev.txt && python3 -m playwright install chromium
 python3 -m unittest tests.e2e.test_board
+```
+
+The pure logic of the page is tested with Node's built-in runner, nothing to install beyond Node: a
+function that needs neither the DOM nor the page's state goes to `logic.mjs`, with its tests.
+
+```bash
+node --test tests/js/
 ```
 
 CI also measures how much of the server the tests run (`coverage`, same file) and fails under 80 %: a new

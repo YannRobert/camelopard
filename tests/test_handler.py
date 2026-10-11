@@ -137,9 +137,51 @@ class HandlerTest(unittest.TestCase):
         self.assertIn("default-src 'none'", policy)
         self.assertIn("frame-ancestors 'none'", policy)
         self.assertNotIn("unsafe-inline' 'nonce", policy)
-        self.assertEqual(body.count(f'<script nonce="{nonce}">'.encode()), 2)
-        self.assertNotIn(b"<script>", body)
+        # The theme script, the configuration and the page's module: none without the nonce.
+        self.assertEqual(body.count(f'<script nonce="{nonce}"'.encode()), 3)
+        self.assertEqual(body.count(b"<script"), 3)
         self.assertNotEqual(self.call("GET", "/")[1], body)
+
+    def get_with_headers(
+            self,
+            path,
+            headers=None
+    ):
+        connection = http.client.HTTPConnection(
+            "127.0.0.1",
+            self.port,
+            timeout=5
+        )
+        try:
+            connection.request(
+                "GET",
+                path,
+                headers=headers or {}
+            )
+            response = connection.getresponse()
+            return response.status, dict(response.getheaders()), response.read()
+        finally:
+            connection.close()
+
+    def test_page_files_are_served_and_revalidated_rather_than_kept_stale(self):
+        status, headers, body = self.get_with_headers("/static/page.mjs")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["Content-Type"], "text/javascript; charset=utf-8")
+        self.assertEqual(headers["Cache-Control"], "no-cache")
+        self.assertIn(b"import", body)
+        status, _, body = self.get_with_headers(
+            "/static/page.mjs",
+            {"If-None-Match": headers["ETag"]}
+        )
+        self.assertEqual(status, 304)
+        self.assertEqual(body, b"")
+        status, headers, _ = self.get_with_headers("/static/page.css")
+        self.assertEqual((status, headers["Content-Type"]), (200, "text/css; charset=utf-8"))
+
+    def test_only_the_page_files_are_served(self):
+        for path in ("/static/index.html", "/static/../handler.py", "/static/%2e%2e/handler.py", "/static/", "/static/page.mjs/x"):
+            with self.subTest(path=path):
+                self.assertEqual(self.call("GET", path)[0], 404)
 
     def test_foreign_host_refused(self):
         # DNS rebinding: a third-party domain pointing to 127.0.0.1.

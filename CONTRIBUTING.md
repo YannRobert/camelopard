@@ -21,7 +21,7 @@ same page and server. `--scenario supplier` serves a heavy board instead (300 is
 people, 42 quick filters, long specifications and comment threads): check a page change there too, so it
 holds up on crowded boards without getting in the way on simple ones.
 
-The page is re-read on every request: a change to `src/camelopard/static/index.html` shows up on the next
+The page's files (`src/camelopard/static/`) are re-read on every request: a change shows up on the next
 reload, without restarting the server.
 
 ## Checking
@@ -32,6 +32,8 @@ From the repository root, with nothing to install:
 python3 -m compileall -q src tests demo
 python3 -m unittest
 ```
+
+With Node installed, the page's pure logic is tested too: `node --test tests/js/`.
 
 The tests never call JIRA. Those of the page (`tests/e2e`) run in a real browser and are skipped unless
 the development tools are installed, as CI does on every pull request:

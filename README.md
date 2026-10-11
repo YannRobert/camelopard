@@ -217,6 +217,7 @@ browser ──► http://localhost:8766 ──► Jira
 | Route | Purpose |
 |---|---|
 | `GET /` | the page (`src/camelopard/static/index.html`, configuration injected) |
+| `GET /static/<file>` | the page's style and scripts (`page.css`, `page.mjs`, `logic.mjs`), revalidated at every load |
 | `GET /jira/<path>` | relay to Jira, restricted to an allow-list of paths |
 | `GET /issue/<key>` | local copy of the issue; `?sync=1` resyncs it (`&force=1` ignores freshness) |
 | `GET /transitions/<key>` | transitions available from the issue's status, and the known paths to the others |
@@ -296,8 +297,13 @@ src/camelopard/
   meter.py                counter of requests to Jira
   config.py, paths.py     configuration file, per-system locations
   constants.py            constants
-  static/index.html       the page (HTML, CSS and JS in a single file)
+  static/                 the page, loaded as is (no build step)
+    index.html            its structure
+    page.css, page.mjs    its look and its behaviour
+    logic.mjs             its pure logic, tested by tests/js
 tests/                    unittest tests, no network
+  e2e/                    the page in a real browser, against the demo (Playwright)
+  js/                     the page's pure logic (node --test)
 ```
 
 ## Roadmap

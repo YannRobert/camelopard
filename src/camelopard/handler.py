@@ -1,6 +1,8 @@
 import gzip
+import hashlib
 import http.client
 import json
+import re
 import secrets
 import time
 from datetime import datetime
@@ -22,6 +24,7 @@ from .constants import (
     MAX_TRANSITION_STEPS,
     MAX_WRITE_BODY_BYTES,
     PAGE_CSP,
+    PAGE_FILES,
     PAGE_NONCE_BYTES,
     RANK_PATH,
     RELAY_DECODE_ROUNDS,
@@ -68,10 +71,11 @@ def make_handler(
     # round trip to this server. The page is read again on every request, so a change to index.html
     # applies at the next F5, without restarting the server.
     def page(nonce):
-        # Nonce before configuration: a "<script>" written in the configuration stays plain text.
-        return (STATIC_DIR / "index.html").read_bytes().replace(
-            b"<script>",
-            f'<script nonce="{nonce}">'.encode()
+        # Nonce before configuration: a "<script" written in the configuration stays plain text.
+        return re.sub(
+            rb"<script(?=[ >])",
+            f'<script nonce="{nonce}"'.encode(),
+            (STATIC_DIR / "index.html").read_bytes()
         ).replace(
             CONFIG_PLACEHOLDER,
             config
@@ -96,6 +100,8 @@ def make_handler(
                         "Content-Security-Policy": PAGE_CSP.format(nonce=nonce),
                     }
                 )
+            elif urlsplit(self.path).path.startswith("/static/"):
+                self.send_page_file(urlsplit(self.path).path[len("/static/"):])
             elif self.path.startswith("/jira/"):
                 relayed = self.path[len("/jira/"):]
                 if not relay_allowed(relayed):
@@ -480,6 +486,30 @@ def make_handler(
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+
+        # Read again on every request, like index.html: a change shows at the next reload. no-cache with an
+        # ETag: the browser keeps the file but asks each time, and an unchanged one costs a 304, no transfer;
+        # it never runs a stale script after an update.
+        def send_page_file(self, name):
+            content_type = PAGE_FILES.get(name)
+            if not content_type:
+                self.send_json(404, {"message": "not found"})
+                return
+            body = (STATIC_DIR / name).read_bytes()
+            etag = '"' + hashlib.sha256(body).hexdigest()[:16] + '"'
+            headers = {"Cache-Control": "no-cache", "ETag": etag}
+            if self.headers.get("If-None-Match") == etag:
+                self.send_body(
+                    304,
+                    b"",
+                    headers
+                )
+                return
+            self.send_body(
+                200,
+                body,
+                {**headers, "Content-Type": content_type, "X-Content-Type-Options": "nosniff"}
+            )
 
         def send_json(
                 self,

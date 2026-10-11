@@ -101,6 +101,12 @@ class BoardTest(unittest.TestCase):
         self.context.add_init_script("window.opened = []; window.open = url => { window.opened.push(url); };")
         self.page = self.context.new_page()
         self.page.set_default_timeout(WAIT_MS)
+        # A script error or a file the security policy blocks fails the test, even where the scenario
+        # would not notice.
+        self.errors = []
+        self.page.on("pageerror", lambda error: self.errors.append(str(error)))
+        self.page.on("console", lambda message: message.type == "error" and self.errors.append(message.text))
+        self.addCleanup(lambda: self.assertEqual(self.errors, []))
         self.page.goto(self.url)
         self.page.locator("#board .card[data-key]").first.wait_for()
 

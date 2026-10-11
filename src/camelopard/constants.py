@@ -88,12 +88,20 @@ CONFIG_PLACEHOLDER = b"__CONFIG__"
 # Second line of defence behind the sanitising of the HTML rendered by Jira: a script slipped into a
 # description or a comment would not run (only the page's own scripts carry the nonce, new at every load),
 # nor could it send anything elsewhere. Images stay open to https: avatars may come from another host.
+# The modules the page's script imports (logic.mjs) need nothing more: an import inherits the nonce.
 PAGE_CSP = (
     "default-src 'none'; script-src 'nonce-{nonce}'; style-src 'self' 'unsafe-inline'; "
     "img-src 'self' data: https:; connect-src 'self'; base-uri 'none'; form-action 'none'; "
     "frame-ancestors 'none'"
 )
 PAGE_NONCE_BYTES = 16
+# The page's files besides index.html, by name: only these are served under /static/, no path is ever
+# built from what a request asks for.
+PAGE_FILES = {
+    "page.css": "text/css; charset=utf-8",
+    "page.mjs": "text/javascript; charset=utf-8",
+    "logic.mjs": "text/javascript; charset=utf-8",
+}
 # A relayed path is decoded this many times at most to look for a "..": a proxy then Jira may each decode
 # it once (%252e → %2e → .). Beyond, the path is refused.
 RELAY_DECODE_ROUNDS = 3
