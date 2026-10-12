@@ -200,7 +200,7 @@ class BoardTest(unittest.TestCase):
         card = self.page.locator("#board .card[data-key]:has(.avatar.none)").first
         key = card.get_attribute("data-key")
         card.click()
-        self.page.keyboard.press("a")
+        self.page.keyboard.press("Shift+A")
         expect(self.page.locator("#assignee-query")).to_be_focused()
         self.page.keyboard.type("bruno")
         self.page.keyboard.press("Enter")

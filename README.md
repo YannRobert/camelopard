@@ -15,7 +15,7 @@ the board and open issues are kept up to date without you having to press F5.
 **Mostly for reading, with a few edits.** It was designed for consulting the board, but it can
 already move issues by dragging a card by one of its grips (⠿, top left and bottom right): within its column to reorder it, or to another
 column to change its status. It can also change an issue's assignee from the detail panel (click the
-assignee, or press `A`).
+assignee, or press `Shift+A`).
 
 **Moving an issue where the workflow does not lead directly.** When the workflow only reaches a status
 through others (A → B → C → D, or from C back to B through D and A), dropping the card in the target

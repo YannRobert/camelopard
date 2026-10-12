@@ -605,6 +605,9 @@ aside .jump .sections button {
 aside .jump .sections button + button { border-top: 1px solid var(--border); }
 aside .jump .sections button:hover { background: var(--accent); color: var(--accent-fg); }
 aside .jump .sections .count { color: var(--faint); font-size: 0.72rem; }
+/* The section's key: underlined as a menu underlines its access key. */
+aside .jump .sections .key { text-decoration: underline; text-underline-offset: 0.15em; }
+aside .jump .sections button.empty { color: var(--faint); }
 aside .jump .sections button:hover .count { color: inherit; }
 /* Back to the top of the detail: only appears after scrolling down about one screen. */
 aside .to-top {

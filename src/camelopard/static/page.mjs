@@ -2529,7 +2529,7 @@ function linksHtml(f) {
       : { relation: link.type.inward, issue: link.inwardIssue }),
     ...(f.subtasks ?? []).map(issue => ({ relation: "subtask", issue })),
   ].filter(row => row.issue);
-  if (!rows.length) return "";
+  if (!rows.length) return `<h4 data-jump="links" data-count="0">Links</h4><p class="muted">No links.</p>`;
   return `<h4 data-jump="links" data-count="${rows.length}">Links (${rows.length})</h4><ul class="links">` + rows.map(({ relation, issue }) => {
     const status = issue.fields?.status;
     return `<li><span class="relation">${escapeHtml(relation)}</span>` +
@@ -2543,7 +2543,7 @@ function linksHtml(f) {
 
 function attachmentsHtml(f) {
   const files = f.attachment ?? [];
-  if (!files.length) return "";
+  if (!files.length) return `<h4 data-jump="attachments" data-count="0">Attachments</h4><p class="muted">No attachments.</p>`;
   return `<h4 data-jump="attachments" data-count="${files.length}">Attachments (${files.length})</h4><ul class="links">` + files.map(file =>
     `<li><a href="${escapeHtml(relayed(file.content))}" target="_blank" rel="noopener"` +
     (file.mimeType?.startsWith("image/") ? ` class="previewable" data-preview="${escapeHtml(relayed(file.content))}"` : "") +
@@ -2555,7 +2555,7 @@ function attachmentsHtml(f) {
 function commentsHtml(data) {
   const raw = data.fields.comment?.comments ?? [];
   const rendered = data.renderedFields?.comment?.comments ?? [];
-  if (!raw.length) return `<h4 data-jump="comments">Comments</h4><p class="muted">No comments.</p>`;
+  if (!raw.length) return `<h4 data-jump="comments" data-count="0">Comments</h4><p class="muted">No comments.</p>`;
   // Newest first: it is the one people come to read.
   const items = raw.map((c, i) => ({ author: c.author, created: c.created, body: rendered[i]?.body ?? escapeHtml(c.body) })).reverse();
   return `<h4 data-jump="comments" data-count="${raw.length}">Comments (${raw.length})</h4>` + items.map(c =>
@@ -2580,7 +2580,7 @@ function historyHtml(data) {
   historyDiffs.length = 0;
   const histories = data.changelog?.histories;
   if (!histories) return "";
-  if (!histories.length) return `<h4 data-jump="history">History</h4><p class="muted">No changes.</p>`;
+  if (!histories.length) return `<h4 data-jump="history" data-count="0">History</h4><p class="muted">No changes.</p>`;
   // Newest first, like the comments.
   return `<h4 data-jump="history" data-count="${histories.length}">History (${histories.length})</h4><ol class="history">` + [...histories].reverse().map(h =>
     `<li class="${HISTORY_BOT.test(h.author?.displayName ?? "") ? "bot" : ""}">` +
@@ -3632,7 +3632,7 @@ function assigneeHtml(
       `<ul id="assignee-options" role="listbox"></ul></div>`;
   }
   const pending = state.assigning.has(key);
-  return `<button type="button" class="assign${pending ? " pending" : ""}" title="${pending ? "Saving in Jira…" : "Change the assignee (A)"}"` +
+  return `<button type="button" class="assign${pending ? " pending" : ""}" title="${pending ? "Saving in Jira…" : "Change the assignee (Shift+A)"}"` +
     `${pending ? " disabled" : ""}>${person(user)}</button>`;
 }
 
@@ -3925,13 +3925,16 @@ document.addEventListener("keydown", e => {
     toggleStandup();
   } else if (state.standup && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === "n") {
     nextSpeaker();
-  } else if (state.openKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === "l") {
+  } else if (state.openKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.shiftKey && e.key.toLowerCase() === "l") {
+    // Shift for what acts, a plain letter only goes to a section: L is the links. Not Ctrl nor Alt, taken
+    // by the browser (Ctrl+L, Alt+D: the address bar) or typing a character on a Mac (Option).
     toggleDock();
-  } else if (state.openKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() in SECTION_KEYS) {
+  } else if (state.openKey && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() in SECTION_KEYS) {
     readSection(SECTION_KEYS[e.key.toLowerCase()]);
   } else if (state.openKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === "m") {
     toggleMaximized();
-  } else if (state.openKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === "a") {
+  } else if (state.openKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.shiftKey && e.key.toLowerCase() === "a") {
+    // Shift: the one key that writes to Jira is not typed by accident, and a plain A is the attachments.
     e.preventDefault();
     openPicker();
   } else if (!e.ctrlKey && !e.metaKey && !e.altKey && VIEWS.some(v => v.key === e.key)) {
@@ -4016,7 +4019,9 @@ $("panel-top").addEventListener("click", () => {
   for (const el of panelScrollers()) el.scrollTo({ top: 0, behavior: scrollBehavior() });
 });
 
-// Detail table of contents: the sections present in the displayed issue, with their number of entries.
+// Detail table of contents: the sections of the displayed issue, with their number of entries. An empty one
+// stays listed, at 0: each button keeps its place from one issue to the next, its key always leads
+// somewhere, and "no attachment" reads at a glance. Its key is its first letter, underlined.
 const JUMP_SECTIONS = [
   ["description", "Description"],
   ["links", "Links"],
@@ -4030,7 +4035,9 @@ function renderJump() {
   $("panel-sections").innerHTML = JUMP_SECTIONS
     .map(([id, label]) => [id, label, content.querySelector(`[data-jump="${id}"]`)])
     .filter(([, , heading]) => heading)
-    .map(([id, label, heading]) => `<button type="button" data-target="${id}">${label}` +
+    .map(([id, label, heading]) => `<button type="button" data-target="${id}"` +
+      `${heading.dataset.count === "0" ? ` class="empty"` : ""} title="${label} (${label[0]})">` +
+      `<span><span class="key">${label[0]}</span>${label.slice(1)}</span>` +
       (heading.dataset.count ? ` <span class="count">${heading.dataset.count}</span>` : "") + `</button>`)
     .join("");
 }
@@ -4047,9 +4054,9 @@ function jumpTo(id) {
   return scroller;
 }
 
-// D, C, H: straight to a section with the keyboard, the focus with it, so the arrows then scroll that section
-// and no longer change the issue (Escape gives them back to the cards).
-const SECTION_KEYS = { d: "description", c: "comments", h: "history" };
+// D, L, A, C, H: straight to a section with the keyboard, the focus with it, so the arrows then scroll that
+// section and no longer change the issue (Escape gives them back to the cards).
+const SECTION_KEYS = Object.fromEntries(JUMP_SECTIONS.map(([id, label]) => [label[0].toLowerCase(), id]));
 
 function readSection(id) {
   jumpTo(id)?.focus({ preventScroll: true });
@@ -4173,7 +4180,7 @@ function applyDock() {
   const height = Number(readPreference(PANEL_HEIGHT_KEY));
   if (height) panel.style.setProperty("--panel-height", `${height * 100}vh`);
   $("panel-dock").textContent = bottom ? "◨" : "⬓";
-  $("panel-dock").title = bottom ? "Show the detail on the side (L key)" : "Show the detail at the bottom, full width (L key)";
+  $("panel-dock").title = bottom ? "Show the detail on the side (Shift+L)" : "Show the detail at the bottom, full width (Shift+L)";
 }
 
 function toggleDock() {
