@@ -24,7 +24,12 @@ after the other. A column holding several statuses leads to the first one of the
 path reaches. If Jira refuses one of them (a required field, a condition), the issue is brought back to
 its starting status when the workflow allows it. Jira only shows a workflow to its administrators: the tool
 learns it from the transitions Jira offers for the board's issues and from the status changes in their
-history, and keeps it in the local copy. A column no known path leads to refuses the card.
+history, and keeps it in the local copy. A column no known path leads to refuses the card. Jira often
+changes a moved issue by itself (a post-function, an automation rule assigning whoever moved it): the card
+takes what the move's answer already holds, and the issue is read again 5 and 20 seconds later (one Jira
+request each) so that its card follows without reloading the board. The card stays in the column it was
+dropped in: a read made just after the move can still give the former status. If the last read finds the
+issue in another column, the board is reloaded and Jira's board settles it.
 
 **Sharing a list of issues.** `Ctrl+C` copies the open issue, or the cards picked with Ctrl + click
 (Cmd + click on a Mac) or Shift + click (a range), one line per issue (key and summary; with a link to

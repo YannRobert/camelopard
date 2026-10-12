@@ -30,6 +30,10 @@ const DETAIL_FRESH_MS = 30 * 1000;
 // detail is read again from the local copy. Asking also tells the server someone is watching: it then
 // checks Jira every 30 s instead of every 5 minutes.
 const CHANGES_POLL_MS = 15 * 1000;
+// After a move, Jira may change the issue on its own: a post-function at once (already in the answer to the
+// move), an automation rule a few seconds later (assigning whoever moved it, for instance). The issue is
+// read again after these delays, one Jira request each, and its card updated without reloading the board.
+const FOLLOW_UP_DELAYS_MS = [5 * 1000, 20 * 1000];
 // A stopped server is not always refused: behind WSL's localhost forwarding, the connection just hangs.
 // Every request therefore has a deadline. Local reads (the copy on disk, /changes, /stats) answer at
 // once; a Jira read is bounded by the server's own Jira timeout (30 s); a move may chain several
@@ -1557,6 +1561,72 @@ function remember(entry) {
   state.detail.delete(entry.key);
   state.detail.set(entry.key, entry);
   if (state.detail.size > DETAIL_CACHE_SIZE) state.detail.delete(state.detail.keys().next().value);
+}
+
+// The card from the issue's local copy: what Jira changed by itself shows without reloading the board.
+// Its column is left alone: a read made just after a transition can still give the status the issue left,
+// which sent the card back where it came from. Returns whether a card changed.
+function patchCard(entry) {
+  const fields = entry?.data?.fields;
+  if (!fields) return false;
+  let changed = false;
+  for (const board of Object.values(state.boards)) {
+    const issue = board.issues.find(i => i.key === entry.key);
+    if (!issue) continue;
+    const next = {};
+    if (fields.summary) next.summary = fields.summary;
+    if (fields.priority) next.priorityId = String(fields.priority.id);
+    // An assignment being saved keeps the value it shows: the copy read meanwhile may predate it.
+    if ("assignee" in fields && !state.assigning.has(entry.key) && (fields.assignee?.name ?? null) !== issue.assignee) {
+      next.assignee = fields.assignee?.name ?? null;
+      next.assigneeName = fields.assignee?.displayName ?? null;
+      next.avatar = fields.assignee?.avatarUrls?.["48x48"] ?? null;
+    }
+    for (const [name, value] of Object.entries(next)) {
+      if (issue[name] === value) continue;
+      issue[name] = value;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function elsewhere(entry) {
+  const statusId = entry.data?.fields?.status?.id;
+  const board = currentBoard();
+  const issue = board?.issues.find(i => i.key === entry.key);
+  if (statusId === undefined || !issue) return false;
+  const column = id => board.columns.findIndex(c => c.statusIds.map(String).includes(String(id)));
+  return column(statusId) !== column(issue.statusId);
+}
+
+// Pending follow-up reads, per issue: moving it again starts them over.
+const followUps = new Map();
+
+function followUp(key) {
+  for (const timer of followUps.get(key) ?? []) clearTimeout(timer);
+  followUps.set(key, FOLLOW_UP_DELAYS_MS.map((delay, index) => setTimeout(
+    async () => {
+      const last = index === FOLLOW_UP_DELAYS_MS.length - 1;
+      if (last) followUps.delete(key);
+      const entry = await fetchIssue(
+        key,
+        "force"
+      ).catch(() => null);
+      // Jira did not answer: the copy the server returns instead says nothing new.
+      if (!entry || entry.syncError) return;
+      remember(entry);
+      if (patchCard(entry)) {
+        renderBoard();
+        saveSnapshot();
+      }
+      if (state.openKey === key && state.detailSyncing !== key) rerenderDetail();
+      // The move has had time to settle in Jira: an issue still read in another column (an automation
+      // moved it on, or the move did not hold) is settled by the board's own data.
+      if (last && !followUps.has(key) && elsewhere(entry)) refresh();
+    },
+    delay
+  )));
 }
 
 function prefetchLocal(key) {
@@ -3306,7 +3376,10 @@ async function moveIssue(
       { issue: key, status: route.statusId }
     );
     remember(body.issue);
+    // The answer to the move already holds what post-functions changed; the column stays where it was dropped.
+    if (patchCard(body.issue) && currentBoard() === board) renderBoard();
     if (state.openKey === key) rerenderDetail();
+    followUp(key);
   } catch (error) {
     undo();
     // Stopped halfway without being able to go back: the card shows where the issue really is.
