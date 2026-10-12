@@ -5,10 +5,15 @@ import { describe, it } from "node:test";
 
 import {
   compactDuration,
+  diffBlocks,
+  diffLines,
+  diffStats,
+  diffWords,
   escapeHtml,
   formatSize,
   latestSprint,
   normalize,
+  pairLines,
   parseSearch,
   standupSince,
   toJiraDate,
@@ -135,5 +140,120 @@ describe("parseSearch", () => {
 describe("normalize", () => {
   it("drops accents and case", () => {
     assert.equal(normalize("Éléonore ÇA"), "eleonore ca");
+  });
+});
+
+describe("diffLines", () => {
+  it("keeps the unchanged lines and marks only those removed or added", () => {
+    const lines = diffLines(
+      "title\nfirst\nsecond\nend",
+      "title\nfirst\nchanged\nend\nmore"
+    );
+    assert.deepEqual(
+      lines.map(line => `${line.type} ${line.text}`),
+      ["same title", "same first", "del second", "add changed", "same end", "add more"]
+    );
+    assert.deepEqual(diffStats(lines), { added: 2, removed: 1 });
+  });
+
+  it("numbers each line on the side it belongs to", () => {
+    const [same, del, add] = diffLines(
+      "a\nb",
+      "a\nc"
+    );
+    assert.deepEqual([same.before, same.after], [1, 1]);
+    assert.deepEqual([del.before, del.after], [2, null]);
+    assert.deepEqual([add.before, add.after], [null, 2]);
+  });
+
+  it("ignores line endings and trailing spaces, which Jira changes from one save to the next", () => {
+    const lines = diffLines(
+      "h2. Context\r\n\r\nSome text  \r\nmore",
+      "h2. Context\n\nSome text\nmore"
+    );
+    assert.deepEqual(diffStats(lines), { added: 0, removed: 0 });
+  });
+
+  it("treats a value set or cleared as all added or all removed", () => {
+    assert.deepEqual(diffStats(diffLines("", "a\nb")), { added: 2, removed: 0 });
+    assert.deepEqual(diffStats(diffLines("a\nb", null)), { added: 0, removed: 2 });
+  });
+
+  it("still answers on texts too long to match, showing the middle as removed then added", () => {
+    const before = Array.from({ length: 2100 }, (_, i) => `old ${i}`).join("\n");
+    const after = Array.from({ length: 2100 }, (_, i) => `new ${i}`).join("\n");
+    assert.deepEqual(diffStats(diffLines(before, after)), { added: 2100, removed: 2100 });
+  });
+});
+
+describe("diffWords", () => {
+  it("marks the words that changed within a line", () => {
+    assert.deepEqual(
+      diffWords(
+        "the cat sleeps here",
+        "the dog sleeps there"
+      ),
+      [
+        { type: "same", text: "the " },
+        { type: "del", text: "cat" },
+        { type: "add", text: "dog" },
+        { type: "same", text: " sleeps " },
+        { type: "del", text: "here" },
+        { type: "add", text: "there" },
+      ]
+    );
+  });
+});
+
+describe("diffBlocks", () => {
+  const numbers = count => Array.from({ length: count }, (_, i) => `line ${i + 1}`);
+
+  it("folds the unchanged lines away from a change, keeping the context around it", () => {
+    const after = numbers(20);
+    after[9] = "changed";
+    const blocks = diffBlocks(
+      diffLines(numbers(20).join("\n"), after.join("\n")),
+      3
+    );
+    assert.deepEqual(
+      blocks.map(block => block.type === "change" ? "change" : `${block.type} ${block.lines.length}`),
+      ["skip 6", "same 3", "change", "same 3", "skip 7"]
+    );
+  });
+
+  it("does not fold fewer lines than the fold itself would take", () => {
+    const after = numbers(8);
+    after[3] = "changed";
+    const blocks = diffBlocks(
+      diffLines(numbers(8).join("\n"), after.join("\n")),
+      3
+    );
+    assert.ok(!blocks.some(block => block.type === "skip"));
+  });
+});
+
+describe("pairLines", () => {
+  const change = (before, after) => diffBlocks(diffLines(before, after)).find(block => block.type === "change");
+
+  it("sets an edited line next to its former version, with its word diff", () => {
+    const rows = pairLines(change(
+      "x\nThe report is sent before 8:00.",
+      "x\nA new line.\nThe report is sent before 8:30."
+    ));
+    assert.equal(rows.length, 2);
+    assert.deepEqual([rows[0].del, rows[0].add.text], [null, "A new line."]);
+    assert.equal(rows[1].del.text, "The report is sent before 8:00.");
+    assert.equal(rows[1].add.text, "The report is sent before 8:30.");
+    assert.ok(rows[1].parts.some(part => part.type === "add" && part.text === "30"));
+  });
+
+  it("does not mark words between lines that have little in common, but still faces them", () => {
+    const rows = pairLines(change(
+      "x\nCompletely different words here",
+      "x\nNothing alike at all"
+    ));
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].parts, null);
+    assert.ok(rows[0].del && rows[0].add);
   });
 });

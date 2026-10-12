@@ -1,10 +1,16 @@
 // The page's behaviour: the board, the detail, the filters, the keys. Its pure logic lives in logic.mjs.
 import {
   compactDuration,
+  diffBlocks,
+  DIFF_CONTEXT,
+  diffLines,
+  diffStats,
+  diffWords,
   escapeHtml,
   formatSize,
   latestSprint,
   normalize,
+  pairLines,
   parseSearch,
   standupSince,
   STATUS_TICK_MS,
@@ -108,6 +114,10 @@ const POPOVER_MARGIN_PX = 8;
 const FILTERS_GAP_PX = 8;
 const DOCK_KEY = "sprint-board.panelDock";
 const PANEL_HEIGHT_KEY = "sprint-board.panelHeight";
+// How a long value's change shows in its dialog: "unified" (one column, as git diff) or "split" (side by
+// side). Without a choice yet, side by side when the window leaves each half room for a sentence.
+const DIFF_LAYOUT_KEY = "sprint-board.diffLayout";
+const DIFF_SPLIT_MIN_WIDTH = 1100;
 // Bounds of the detail height at the bottom, as a fraction of the window.
 const PANEL_MIN_HEIGHT = 0.2;
 const PANEL_MAX_HEIGHT = 0.8;
@@ -2567,6 +2577,7 @@ const HISTORY_LONG_VALUE = 120;
 const HISTORY_BOT = /automat/i;
 
 function historyHtml(data) {
+  historyDiffs.length = 0;
   const histories = data.changelog?.histories;
   if (!histories) return "";
   if (!histories.length) return `<h4 data-jump="history">History</h4><p class="muted">No changes.</p>`;
@@ -2574,24 +2585,179 @@ function historyHtml(data) {
   return `<h4 data-jump="history" data-count="${histories.length}">History (${histories.length})</h4><ol class="history">` + [...histories].reverse().map(h =>
     `<li class="${HISTORY_BOT.test(h.author?.displayName ?? "") ? "bot" : ""}">` +
     `<div class="who">${person(h.author)}<span class="when" title="${escapeHtml(formatDate(h.created))}">${relative(Date.parse(h.created))}</span></div>` +
-    `<ul>${h.items.map(historyItemHtml).join("")}</ul></li>`
+    `<ul>${h.items.map(item => historyItemHtml(
+      item,
+      h
+    )).join("")}</ul></li>`
   ).join("") + `</ol>`;
 }
 
-function historyItemHtml(item) {
-  const field = `<span class="field">${escapeHtml(HISTORY_FIELDS[item.field] ?? item.field)}</span>`;
+// The long changes of the detail shown, by the index its button carries: the dialog reads them from here.
+const historyDiffs = [];
+
+function historyItemHtml(
+  item,
+  history
+) {
+  const label = HISTORY_FIELDS[item.field] ?? item.field;
+  const field = `<span class="field">${escapeHtml(label)}</span>`;
   const from = item.from ?? "";
   const to = item.to ?? "";
-  if (from.length > HISTORY_LONG_VALUE || to.length > HISTORY_LONG_VALUE) {
-    return `<li>${field} <details><summary>changed</summary>` +
-      (from ? `<div class="old">${escapeHtml(from)}</div>` : "") +
-      (to ? `<div class="new">${escapeHtml(to)}</div>` : "") + `</details></li>`;
+  // Jira strikes the whole old text through before the whole new one: past a line, the change opens in a
+  // dialog that shows only the lines that changed.
+  if (from.length > HISTORY_LONG_VALUE || to.length > HISTORY_LONG_VALUE || /\n/.test(from + to)) {
+    const lines = diffLines(
+      from,
+      to
+    );
+    const { added, removed } = diffStats(lines);
+    const count = n => `${n} line${n === 1 ? "" : "s"}`;
+    const summary = !from ? `added, ${count(added)}`
+      : !to ? `removed, ${count(removed)}`
+        : !added && !removed ? "line breaks or spaces only"
+          : lines.length <= 2 && added === 1 && removed === 1 ? "edited"
+            : `+${added} −${removed} lines`;
+    historyDiffs.push({ label, history, from, to, lines });
+    return `<li>${field} <button type="button" class="diff-open" data-diff="${historyDiffs.length - 1}"` +
+      ` title="Show what changed">${escapeHtml(summary)}</button></li>`;
   }
   const change = !from ? `<span class="new">${escapeHtml(to)}</span>`
     : !to ? `<del>${escapeHtml(from)}</del> <span class="muted">(removed)</span>`
       : `<del>${escapeHtml(from)}</del> → <span class="new">${escapeHtml(to)}</span>`;
   return `<li>${field} ${change}</li>`;
 }
+
+// ---------- A long value's change, in a dialog ----------
+
+// The change shown, whether its unchanged lines are all shown, and the folds opened one by one (by the line
+// number they start at).
+const diffView = { entry: null, whole: false, unfolded: new Set() };
+
+function diffLayout() {
+  const saved = readPreference(DIFF_LAYOUT_KEY);
+  if (saved === "unified" || saved === "split") return saved;
+  return window.innerWidth >= DIFF_SPLIT_MIN_WIDTH ? "split" : "unified";
+}
+
+function openDiff(index) {
+  const entry = historyDiffs[index];
+  if (!entry) return;
+  Object.assign(diffView, { entry, whole: false, unfolded: new Set() });
+  const { added, removed } = diffStats(entry.lines);
+  $("diff-title").textContent = `${entry.label} of ${state.openKey}`;
+  $("diff-meta").innerHTML = `${escapeHtml(entry.history.author?.displayName ?? "")} · ` +
+    `${escapeHtml(formatDate(entry.history.created))} · ` +
+    `<span class="added">+${added}</span> <span class="removed">−${removed}</span>`;
+  renderDiff();
+  $("diff-dialog").showModal();
+  // Scrolled with the keyboard at once: the body holds the focus rather than the first button.
+  $("diff-body").scrollTop = 0;
+  $("diff-body").focus();
+}
+
+function renderDiff() {
+  const { entry, whole, unfolded } = diffView;
+  const layout = diffLayout();
+  for (const button of $("diff-dialog").querySelectorAll("[data-layout]")) {
+    button.setAttribute("aria-pressed", String(button.dataset.layout === layout));
+  }
+  $("diff-whole").setAttribute("aria-pressed", String(whole));
+  const blocks = diffBlocks(
+    entry.lines,
+    whole ? Infinity : DIFF_CONTEXT
+  ).map(block => block.type === "skip" && unfolded.has(block.lines[0].before) ? { ...block, type: "same" } : block);
+  if (!blocks.some(block => block.type === "change")) {
+    $("diff-body").innerHTML = `<p class="muted">Only line breaks or trailing spaces changed: the text reads the same.</p>`;
+    return;
+  }
+  const rows = blocks.map(block => layout === "split" ? splitRows(block) : unifiedRows(block)).join("");
+  // Fixed layout: the widths come from the columns, not from a first row that may be a fold.
+  const columns = layout === "split"
+    ? `<col class="no"><col><col class="no"><col>`
+    : `<col class="no"><col class="no"><col class="sign"><col>`;
+  $("diff-body").innerHTML = `<table class="diff ${layout}"><colgroup>${columns}</colgroup>${rows}</table>`;
+}
+
+// The words of one side of an edited line, those that changed marked.
+function markedWords(
+  parts,
+  side
+) {
+  return parts
+    .filter(part => part.type === "same" || part.type === side)
+    .map(part => part.type === "same" ? escapeHtml(part.text) : `<span class="word">${escapeHtml(part.text)}</span>`)
+    .join("");
+}
+
+function foldRow(
+  block,
+  columns
+) {
+  const count = block.lines.length;
+  return `<tr class="fold"><td colspan="${columns}"><button type="button" class="diff-unfold" data-from="${block.lines[0].before}">` +
+    `⋯ ${count} unchanged line${count === 1 ? "" : "s"}</button></td></tr>`;
+}
+
+const lineNumber = number => `<td class="no">${number ?? ""}</td>`;
+
+// One column, as git diff: the removed lines of a change, then the added ones.
+function unifiedRows(block) {
+  if (block.type === "skip") return foldRow(
+    block,
+    4
+  );
+  const row = (type, line, html) => `<tr class="${type}">${lineNumber(line.before)}${lineNumber(line.after)}` +
+    `<td class="sign">${{ same: "", del: "−", add: "+" }[type]}</td><td class="text">${html}</td></tr>`;
+  if (block.type === "same") return block.lines.map(line => row("same", line, escapeHtml(line.text))).join("");
+  const pairs = pairLines(block);
+  return pairs.filter(pair => pair.del).map(pair => row("del", pair.del, pair.parts ? markedWords(pair.parts, "del") : escapeHtml(pair.del.text))).join("") +
+    pairs.filter(pair => pair.add).map(pair => row("add", pair.add, pair.parts ? markedWords(pair.parts, "add") : escapeHtml(pair.add.text))).join("");
+}
+
+// Side by side: the former text on the left, the new one on the right, an edited line facing its old form.
+function splitRows(block) {
+  if (block.type === "skip") return foldRow(
+    block,
+    4
+  );
+  const side = (type, line, number, html) => line
+    ? `<td class="no ${type}">${number}</td><td class="text ${type}">${html}</td>`
+    : `<td class="no empty"></td><td class="text empty"></td>`;
+  if (block.type === "same") {
+    return block.lines.map(line => `<tr>${side("same", line, line.before, escapeHtml(line.text))}` +
+      `${side("same", line, line.after, escapeHtml(line.text))}</tr>`).join("");
+  }
+  return pairLines(block).map(pair => `<tr>` +
+    side("del", pair.del, pair.del?.before, pair.parts ? markedWords(pair.parts, "del") : escapeHtml(pair.del?.text)) +
+    side("add", pair.add, pair.add?.after, pair.parts ? markedWords(pair.parts, "add") : escapeHtml(pair.add?.text)) +
+    `</tr>`).join("");
+}
+
+$("diff-dialog").addEventListener("click", event => {
+  const dialog = $("diff-dialog");
+  // The backdrop belongs to the dialog itself, its content to the form inside it.
+  if (event.target === dialog) {
+    dialog.close();
+    return;
+  }
+  const layout = event.target.closest("[data-layout]");
+  if (layout) {
+    savePreference(
+      DIFF_LAYOUT_KEY,
+      layout.dataset.layout
+    );
+    renderDiff();
+  }
+  if (event.target.closest("#diff-whole")) {
+    diffView.whole = !diffView.whole;
+    renderDiff();
+  }
+  const unfold = event.target.closest(".diff-unfold");
+  if (unfold) {
+    diffView.unfolded.add(Number(unfold.dataset.from));
+    renderDiff();
+  }
+});
 
 function person(user) {
   if (!user?.name) return `<span class="muted">Unassigned</span>`;
@@ -3964,6 +4130,8 @@ $("panel-content").addEventListener("scroll", hidePreview, { passive: true, capt
 
 $("panel-content").addEventListener("click", event => {
   if (event.target.closest(".assign")) openPicker();
+  const diff = event.target.closest(".diff-open");
+  if (diff) openDiff(Number(diff.dataset.diff));
   const option = event.target.closest("#assignee-options li[data-index]");
   if (option && state.picker) choosePickerOption(state.picker.options[Number(option.dataset.index)]);
 });

@@ -31,6 +31,9 @@
   --panel-shadow-left: 8px 0 32px -8px rgba(0, 0, 0, .6);
   --recent: #f5b84a;
   --error-bg: #4a2219; --error-fg: #ffb4a3;
+  /* A change's lines, then the words that changed within an edited line: a tint, the text left readable. */
+  --diff-del: rgba(248, 116, 98, .13); --diff-del-word: rgba(248, 116, 98, .38);
+  --diff-add: rgba(75, 206, 151, .12); --diff-add-word: rgba(75, 206, 151, .36);
   /* Raised above the cards it covers: lighter than them in the dark theme, white in the light one. */
   --popover: #463f36;
   --popover-shadow: 0 12px 32px rgba(0, 0, 0, .6);
@@ -59,6 +62,8 @@
   --shadow: 0 1px 2px rgba(60, 40, 20, .18);
   --panel-shadow: -8px 0 32px -8px rgba(60, 40, 20, .3);
   --error-bg: #ffebe6; --error-fg: #bf2600;
+  --diff-del: #ffebe6; --diff-del-word: #ffc2b5;
+  --diff-add: #e3f5ea; --diff-add-word: #b3e3c4;
   --panel-shadow-left: 8px 0 32px -8px rgba(60, 40, 20, .3);
   --recent: #d9860f;
   --popover: #ffffff;
@@ -728,10 +733,61 @@ aside h4 { margin: 1.4rem 0 0.5rem; font-size: 0.8rem; text-transform: uppercase
 .history .field::after { content: ":"; }
 .history del { color: var(--faint); }
 .history .new { color: var(--text); }
-.history details { display: inline; }
-.history summary { display: inline; cursor: pointer; color: var(--link); }
-.history details[open] { display: block; }
-.history details .old, .history details .new {
-  white-space: pre-wrap; margin-top: 0.3rem; padding: 0.3rem 0.5rem; border-radius: 3px; background: var(--column);
+.history .diff-open {
+  padding: 0; border: 0; background: none; color: var(--link); font: inherit; cursor: pointer;
 }
-.history details .old { text-decoration: line-through; color: var(--faint); }
+.history .diff-open:hover { text-decoration: underline; }
+/* A long value's change: as large as the window allows, the lines scrolling under a fixed header. */
+.diff-dialog {
+  width: min(96rem, calc(100vw - 2rem)); height: calc(100vh - 2rem); max-width: none; max-height: none;
+  box-sizing: border-box; padding: 0; border: 1px solid var(--border); border-radius: 0.8rem;
+  background: var(--column); color: var(--text); box-shadow: 0 16px 48px rgba(0, 0, 0, .45);
+}
+.diff-dialog::backdrop { background: rgba(0, 0, 0, .45); }
+.diff-dialog form { display: flex; flex-direction: column; height: 100%; }
+.diff-dialog header {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1.2rem;
+  padding: 0.9rem 1.2rem; border-bottom: 1px solid var(--border);
+}
+.diff-dialog h2 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+.diff-dialog .meta { margin: 0.2rem 0 0; color: var(--muted); font-size: 0.85rem; }
+.diff-dialog .meta .added { color: var(--green); font-weight: 600; }
+.diff-dialog .meta .removed { color: var(--red); font-weight: 600; }
+.diff-dialog .tools { display: flex; align-items: center; gap: 0.6rem; }
+.diff-dialog .tools button {
+  padding: 0.35rem 0.75rem; border: 1px solid var(--border); border-radius: 0.45rem;
+  background: var(--card); color: var(--text); font: inherit; font-size: 0.85rem; cursor: pointer;
+}
+.diff-dialog .tools button:hover { background: var(--card-hover); }
+.diff-dialog .tools button[aria-pressed="true"] { background: var(--selected); border-color: var(--accent); color: var(--link); }
+.diff-dialog .segmented { display: inline-flex; }
+.diff-dialog .segmented button:first-child { border-radius: 0.45rem 0 0 0.45rem; }
+.diff-dialog .segmented button:last-child { border-radius: 0 0.45rem 0.45rem 0; margin-left: -1px; }
+.diff-dialog .tools .close { border-color: transparent; background: none; font-size: 1rem; }
+.diff-body { flex: 1; overflow: auto; padding: 0.6rem 0 1rem; outline: none; }
+.diff-body > p { padding: 0 1.2rem; }
+.diff { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 0.85rem; line-height: 1.5; }
+.diff td { padding: 0.05rem 0.5rem; vertical-align: top; }
+.diff .text { white-space: pre-wrap; overflow-wrap: anywhere; }
+/* Line numbers: for finding one's way, not for reading. */
+.diff col.no { width: 3.2rem; }
+.diff col.sign { width: 1.2rem; }
+.diff .no {
+  color: var(--faint); font-size: 0.75rem; text-align: right; user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+.diff.unified .sign { padding: 0.05rem 0; color: var(--muted); text-align: center; user-select: none; }
+.diff.unified tr.del td, .diff.split td.del { background: var(--diff-del); }
+.diff.unified tr.add td, .diff.split td.add { background: var(--diff-add); }
+.diff tr.del .word, .diff td.del .word { background: var(--diff-del-word); border-radius: 2px; }
+.diff tr.add .word, .diff td.add .word { background: var(--diff-add-word); border-radius: 2px; }
+.diff.split td.empty { background: var(--bg); }
+.diff.split td.text.same + td.no, .diff.split td.text.del + td.no, .diff.split td.text.empty + td.no {
+  border-left: 1px solid var(--border);
+}
+.diff tr.fold td { padding: 0.15rem 0.5rem; }
+.diff .diff-unfold {
+  width: 100%; padding: 0.2rem 0; border: 0; border-radius: 3px; background: var(--card); color: var(--muted);
+  font: inherit; font-size: 0.8rem; cursor: pointer;
+}
+.diff .diff-unfold:hover { background: var(--card-hover); color: var(--text); }

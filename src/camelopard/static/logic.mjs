@@ -88,3 +88,204 @@ export function parseSearch(
 }
 
 const searchField = prefix => SEARCH_ALIASES[prefix.toLowerCase()] ?? prefix.toLowerCase();
+
+// ---------- Text diff, for the history's long values (a description rewritten) ----------
+
+// Beyond this many comparisons (items before × items after, once the common start and end are set aside),
+// matching would freeze the page: the whole span is then shown as removed, then added.
+export const DIFF_MAX_CELLS = 4_000_000;
+// Unchanged lines kept around each change, as git does; the rest folds into "n unchanged lines".
+export const DIFF_CONTEXT = 3;
+// Two lines are shown as one edited line, their changed words marked, only when they share at least this
+// share of their characters: marking most of a line rewritten whole hides it rather than shows it.
+export const DIFF_SIMILAR = 0.5;
+
+// Longest common subsequence of two arrays → [type, indexBefore, indexAfter], "del" before "add" within a
+// change so that a rewritten line reads removed then added.
+function matchItems(
+  before,
+  after,
+  same
+) {
+  const ops = [];
+  let start = 0;
+  while (start < before.length && start < after.length && same(before[start], after[start])) {
+    ops.push(["same", start, start]);
+    start++;
+  }
+  let endBefore = before.length;
+  let endAfter = after.length;
+  while (endBefore > start && endAfter > start && same(before[endBefore - 1], after[endAfter - 1])) {
+    endBefore--;
+    endAfter--;
+  }
+  const n = endBefore - start;
+  const m = endAfter - start;
+  if (n * m > DIFF_MAX_CELLS) {
+    for (let i = start; i < endBefore; i++) ops.push(["del", i, null]);
+    for (let j = start; j < endAfter; j++) ops.push(["add", null, j]);
+  } else {
+    // lengths[i * (m + 1) + j]: longest common run of before[start + i…] and after[start + j…].
+    const lengths = new Uint32Array((n + 1) * (m + 1));
+    for (let i = n - 1; i >= 0; i--) {
+      for (let j = m - 1; j >= 0; j--) {
+        lengths[i * (m + 1) + j] = same(before[start + i], after[start + j])
+          ? lengths[(i + 1) * (m + 1) + j + 1] + 1
+          : Math.max(lengths[(i + 1) * (m + 1) + j], lengths[i * (m + 1) + j + 1]);
+      }
+    }
+    let i = 0;
+    let j = 0;
+    const dels = [];
+    const adds = [];
+    const flush = () => {
+      ops.push(...dels.splice(0), ...adds.splice(0));
+    };
+    while (i < n || j < m) {
+      if (i < n && j < m && same(before[start + i], after[start + j])) {
+        flush();
+        ops.push(["same", start + i, start + j]);
+        i++;
+        j++;
+      } else if (j >= m || (i < n && lengths[(i + 1) * (m + 1) + j] >= lengths[i * (m + 1) + j + 1])) {
+        dels.push(["del", start + i++, null]);
+      } else {
+        adds.push(["add", null, start + j++]);
+      }
+    }
+    flush();
+  }
+  for (let k = 0; endBefore + k < before.length; k++) ops.push(["same", endBefore + k, endAfter + k]);
+  return ops;
+}
+
+// Jira returns the same description with "\r\n" or "\n" from one save to the next: only the text counts.
+const textLines = text => text ? String(text).replace(/\r\n?/g, "\n").split("\n") : [];
+
+// Line by line, ignoring line endings and trailing spaces → [{type: "same"|"del"|"add", text, before,
+// after}], before and after being 1-based line numbers (null on the side the line is missing from).
+export function diffLines(
+  before,
+  after
+) {
+  const a = textLines(before);
+  const b = textLines(after);
+  return matchItems(
+    a,
+    b,
+    (x, y) => x.trimEnd() === y.trimEnd()
+  ).map(([type, i, j]) => ({
+    type,
+    text: type === "add" ? b[j] : a[i],
+    before: i === null ? null : i + 1,
+    after: j === null ? null : j + 1,
+  }));
+}
+
+const WORD = /\s+|[\p{L}\p{N}_]+|[^\s\p{L}\p{N}_]/gu;
+
+// Word by word, within one edited line → [{type, text}], neighbours of the same type merged.
+export function diffWords(
+  before,
+  after
+) {
+  const a = before.match(WORD) ?? [];
+  const b = after.match(WORD) ?? [];
+  const parts = [];
+  for (const [type, i, j] of matchItems(a, b, (x, y) => x === y)) {
+    const text = type === "add" ? b[j] : a[i];
+    if (parts.at(-1)?.type === type) parts.at(-1).text += text;
+    else parts.push({ type, text });
+  }
+  return parts;
+}
+
+// Whether two lines are one line edited (its changed words worth marking) rather than two different lines.
+export function similarLines(parts) {
+  const length = type => parts.filter(p => p.type === type || p.type === "same").reduce((sum, p) => sum + p.text.length, 0);
+  const kept = parts.filter(p => p.type === "same" && p.text.trim()).reduce((sum, p) => sum + p.text.length, 0);
+  return kept >= DIFF_SIMILAR * Math.max(length("del"), length("add"), 1);
+}
+
+// The lines in blocks: {type: "same", lines} or {type: "change", del, add}; with a context, the middle of a
+// long unchanged block becomes {type: "skip", lines}, still holding its lines to unfold them.
+export function diffBlocks(
+  lines,
+  context = Infinity
+) {
+  const blocks = [];
+  for (const line of lines) {
+    const kind = line.type === "same" ? "same" : "change";
+    let block = blocks.at(-1);
+    if (block?.type !== kind) {
+      block = kind === "same" ? { type: "same", lines: [] } : { type: "change", del: [], add: [] };
+      blocks.push(block);
+    }
+    (kind === "same" ? block.lines : block[line.type]).push(line);
+  }
+  if (context === Infinity) return blocks;
+  return blocks.flatMap((block, index) => {
+    if (block.type !== "same") return [block];
+    const head = index === 0 ? 0 : context;
+    const tail = index === blocks.length - 1 ? 0 : context;
+    // Folding fewer lines than the fold's own line saves nothing.
+    if (block.lines.length <= head + tail + 1) return [block];
+    return [
+      { type: "same", lines: block.lines.slice(0, head) },
+      { type: "skip", lines: block.lines.slice(head, block.lines.length - tail) },
+      { type: "same", lines: block.lines.slice(block.lines.length - tail) },
+    ].filter(part => part.lines.length);
+  });
+}
+
+export function diffStats(lines) {
+  return {
+    added: lines.filter(line => line.type === "add").length,
+    removed: lines.filter(line => line.type === "del").length,
+  };
+}
+
+// A change block's lines as rows: a removed line next to the added line it became, when they are alike
+// (parts: their word diff), otherwise each alone. Lines left alone on both sides still share rows, so that a
+// side-by-side view lays a rewritten passage next to its former version.
+export function pairLines(block) {
+  const rows = [];
+  let next = 0;
+  for (const del of block.del) {
+    let match = -1;
+    let parts = null;
+    for (let k = next; k < block.add.length && match < 0; k++) {
+      const candidate = diffWords(
+        del.text,
+        block.add[k].text
+      );
+      if (similarLines(candidate)) {
+        match = k;
+        parts = candidate;
+      }
+    }
+    if (match < 0) {
+      rows.push({ del, add: null, parts: null });
+      continue;
+    }
+    while (next < match) rows.push({ del: null, add: block.add[next++], parts: null });
+    rows.push({ del, add: block.add[next++], parts });
+  }
+  while (next < block.add.length) rows.push({ del: null, add: block.add[next++], parts: null });
+  // Removed lines alone followed by added lines alone: side by side, row by row.
+  const merged = [];
+  for (let i = 0; i < rows.length;) {
+    if (rows[i].parts || !rows[i].del) {
+      merged.push(rows[i++]);
+      continue;
+    }
+    const dels = [];
+    while (i < rows.length && rows[i].del && !rows[i].add) dels.push(rows[i++].del);
+    const adds = [];
+    while (i < rows.length && rows[i].add && !rows[i].del) adds.push(rows[i++].add);
+    for (let k = 0; k < Math.max(dels.length, adds.length); k++) {
+      merged.push({ del: dels[k] ?? null, add: adds[k] ?? null, parts: null });
+    }
+  }
+  return merged;
+}

@@ -140,6 +140,26 @@ try {
   </form>
 </dialog>
 
+<dialog id="diff-dialog" class="diff-dialog" aria-labelledby="diff-title">
+  <form method="dialog">
+    <header>
+      <div class="heading">
+        <h2 id="diff-title"></h2>
+        <p class="meta" id="diff-meta"></p>
+      </div>
+      <div class="tools">
+        <div class="segmented" role="group" aria-label="Layout">
+          <button type="button" data-layout="unified" aria-pressed="false">Unified</button>
+          <button type="button" data-layout="split" aria-pressed="false">Side by side</button>
+        </div>
+        <button type="button" class="toggle" id="diff-whole" aria-pressed="false" title="Show the unchanged lines too">Whole text</button>
+        <button class="close" value="close" title="Close (Esc)" aria-label="Close">✕</button>
+      </div>
+    </header>
+    <div class="diff-body" id="diff-body" tabindex="-1"></div>
+  </form>
+</dialog>
+
 <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
 <div class="preview" id="preview" hidden><img alt=""><span class="loading">Loading…</span></div>
 

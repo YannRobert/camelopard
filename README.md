@@ -37,6 +37,14 @@ Jira when pasted into a mail or a chat). Picking a second card closes the detail
 then assigns the picked issues or moves them to a column, after a confirmation listing each one (and the
 issues no known path can move, left as is).
 
+**Reading what changed in a description.** Jira's history strikes the whole former text through, then
+gives the whole new one: past a few lines, the change is lost in them. In the detail's history, a change
+longer than a line reads "+3 −2 lines"; clicking it opens a dialog with only the lines that changed, as
+`git diff` does, a few unchanged ones around them and the rest folded. Within an edited line the words
+that changed are marked. The dialog shows one column or the two versions side by side (the choice is
+remembered), and "Whole text" unfolds everything. Line breaks and trailing spaces are ignored: Jira
+switches between `\r\n` and `\n` from one save to the next, which would otherwise mark every line.
+
 ## Trying it without Jira
 
 ```bash
