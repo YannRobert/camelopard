@@ -52,6 +52,14 @@ class BoardTest(unittest.TestCase):
             0,
             True
         )
+        # Someone who acts on the sprint without any issue assigned, before the local copy is first filled:
+        # Jira's automation account.
+        cls.automated = next(issue["key"] for issue in cls.jira.board.issues if dataset.SPRINT_ID in issue["sprints"])
+        cls.jira.board.comment(
+            cls.automated,
+            dataset.BOT[0],
+            "Linked to the release automatically."
+        )
         cls.mirror = tempfile.TemporaryDirectory()
         port = free_port()
         cls.url = f"http://127.0.0.1:{port}/"
@@ -217,6 +225,13 @@ class BoardTest(unittest.TestCase):
         self.page.keyboard.press("Escape")
         self.page.keyboard.press("Escape")
         expect(self.page.locator("#standup")).to_be_hidden()
+
+    def test_the_stand_up_gives_the_floor_to_whoever_acted_without_any_issue(self):
+        self.page.keyboard.press("Shift+S")
+        self.page.locator(f'#standup-people button[title^="{dataset.BOT[1]}"]').click()
+        expect(self.page.locator("#standup-changes")).to_contain_text("Linked to the release automatically.")
+        # Commenting hands nothing over: the card is there for what they did on it.
+        expect(self.page.locator(f'#board .card[data-key="{self.automated}"] .handed')).to_have_text("worked on")
 
     def test_question_mark_lists_the_keys_of_where_it_is_pressed(self):
         self.page.keyboard.press("?")

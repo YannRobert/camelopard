@@ -1274,8 +1274,9 @@ function card(
   board
 ) {
   const epic = board.epics[issue.epicId];
-  const handed = handedOver(issue);
-  const classes = ["card", issue.done ? "done" : "", issue.key === state.openKey ? "selected" : "", issue.key in state.recent ? "recent" : "", state.picked.has(issue.key) ? "picked" : "", handed ? "handed-over" : ""].filter(Boolean).join(" ");
+  const elsewhere = touchedElsewhere(issue);
+  const handed = elsewhere && handedOver(issue);
+  const classes = ["card", issue.done ? "done" : "", issue.key === state.openKey ? "selected" : "", issue.key in state.recent ? "recent" : "", state.picked.has(issue.key) ? "picked" : "", elsewhere ? "handed-over" : ""].filter(Boolean).join(" ");
   // draggable="false": otherwise pressing a link and moving drags its URL instead of selecting text.
   return `<a class="${classes}" href="${browseUrl(issue.key)}" data-key="${escapeHtml(issue.key)}" draggable="false">` +
     `<div class="top"><span class="id">${GRIP}<span class="key">${escapeHtml(issue.key)}</span></span>` +
@@ -1284,7 +1285,8 @@ function card(
     (epic ? `<span class="epic" style="--epic:${EPIC_COLORS[epic.color] ?? "#c1c7d0"}" title="${escapeHtml(epic.key)}">${escapeHtml(epic.text)}</span>` : "") +
     `<div class="foot">${icon(board.types[issue.typeId])}${icon(board.priorities[issue.priorityId])}` +
     (issue.points != null ? `<span class="sp" title="Story points">${formatPoints(issue.points)}</span>` : "") +
-    (handed ? `<span class="handed" title="Changed by the person speaking since ${escapeHtml(formatSince(state.standup.since))}, now assigned to someone else">handed over</span>` : "") +
+    (handed ? `<span class="handed" title="Assigned to the person speaking, handed to someone else since ${escapeHtml(formatSince(state.standup.since))}">handed over</span>` : "") +
+    (elsewhere && !handed ? `<span class="handed" title="Changed by the person speaking since ${escapeHtml(formatSince(state.standup.since))}, assigned to someone else">worked on</span>` : "") +
     `${GRIP}</div></a>`;
 }
 
@@ -1903,10 +1905,23 @@ $("bulk").addEventListener("click", e => {
 
 // ---------- Stand-up ----------
 
-// Everyone with an issue in the sprint, by first name; unassigned issues last.
-function standupPeople(board) {
+// Everyone with an issue in the sprint, and everyone who acted on one since then without any assigned (who
+// writes the issues, sends them back, reassigns them: their day shows in what they did), by first name;
+// unassigned issues last.
+function standupPeople(
+  board,
+  activity
+) {
   const names = new Map();
-  for (const issue of board.issues) if (issue.assignee) names.set(issue.assignee, firstName(issue.assignee, issue.assigneeName));
+  const add = (login, name) => {
+    if (![...names.keys()].some(known => known.toLowerCase() === login.toLowerCase())) names.set(login, firstName(login, name));
+  };
+  for (const issue of board.issues) if (issue.assignee) add(issue.assignee, issue.assigneeName);
+  const keys = new Set(board.issues.map(issue => issue.key));
+  for (const issue of activity) {
+    if (!keys.has(issue.key)) continue;
+    for (const change of issue.changes) if (change.author?.name) add(change.author.name, change.author.displayName);
+  }
   const people = [...names.keys()].sort((a, b) => names.get(a).localeCompare(names.get(b), undefined, { sensitivity: "base" }));
   return board.issues.some(issue => !issue.assignee) ? [...people, null] : people;
 }
@@ -1917,10 +1932,16 @@ function standupPerson(
   login
 ) {
   const issue = board.issues.find(i => (i.assignee ?? null) === login);
+  // Someone with no issue: their name comes from what they did.
+  const author = issue ? null : (state.standup?.activity ?? []).flatMap(i => i.changes).find(change => authoredBy(
+    change,
+    login
+  ))?.author;
+  const name = issue?.assigneeName ?? author?.displayName;
   return {
     login,
-    name: issue?.assigneeName ?? login,
-    first: login ? firstName(login, issue?.assigneeName) : "Unassigned",
+    name: name ?? login,
+    first: login ? firstName(login, name) : "Unassigned",
     avatar: issue?.avatar,
   };
 }
@@ -1933,7 +1954,10 @@ function toggleStandup() {
   const board = currentBoard();
   if (!board) return;
   const since = standupSince();
-  state.standup = { people: standupPeople(board), index: null, spoke: new Set(), since, activity: [], touched: new Set() };
+  state.standup = { people: standupPeople(
+    board,
+    []
+  ), index: null, spoke: new Set(), since, activity: [], touched: new Set() };
   closeDetail();
   clearPicked();
   // Built once: the board renders again at every sync, and the field must keep what is being typed.
@@ -1951,7 +1975,16 @@ function toggleStandup() {
     { timeout: LOCAL_TIMEOUT_MS }
   ).then(response => response.ok ? response.json() : null).catch(() => null).then(body => {
     if (!body || state.standup?.since !== since) return;
-    state.standup.activity = body.issues;
+    const standup = state.standup;
+    standup.activity = body.issues;
+    // Those who only acted join the round: whoever has the floor or has spoken keeps it, by login.
+    const before = standup.people;
+    standup.people = standupPeople(
+      currentBoard(),
+      body.issues
+    );
+    if (standup.index !== null) standup.index = standup.people.indexOf(before[standup.index]);
+    standup.spoke = new Set([...standup.spoke].map(i => standup.people.indexOf(before[i])));
     // The issues the person speaking acted on join the board: render it all, not only the strip.
     updateTouched();
     renderBoard();
@@ -2005,9 +2038,18 @@ function updateTouched() {
   state.standup.touched = new Set(speakerActivity().map(issue => issue.key));
 }
 
-function handedOver(issue) {
+// An issue on the board for what the person speaking did on it, not for being theirs.
+function touchedElsewhere(issue) {
   const login = speakerLogin();
   return login !== undefined && state.standup.touched.has(issue.key) && (issue.assignee ?? null) !== login;
+}
+
+// Of those, one that was theirs since then; the others they only worked on (a comment, a move): someone who
+// writes or checks the issues without being assigned any hands nothing over.
+function handedOver(issue) {
+  const login = speakerLogin()?.toLowerCase();
+  return state.standup.activity.some(entry => entry.key === issue.key
+    && entry.changes.some(change => change.kind === "assignee" && change.from?.toLowerCase() === login));
 }
 
 // Nobody named: the next one in the row who has not spoken yet, and nobody once everyone has.
@@ -2055,12 +2097,13 @@ function renderStandup() {
       people[index]
     );
     const shown = visibleIssues(board);
-    const issues = shown.filter(issue => !handedOver(issue));
-    const handed = shown.length - issues.length;
+    const issues = shown.filter(issue => !touchedElsewhere(issue));
+    const handed = shown.filter(issue => touchedElsewhere(issue) && handedOver(issue)).length;
+    const worked = shown.length - issues.length - handed;
     const points = issues.reduce((sum, issue) => sum + (issue.points ?? 0), 0);
     current = `${avatar(person.login, person.name, person.avatar)}${escapeHtml(person.first)}`;
     meta = `${issues.length} issue${issues.length === 1 ? "" : "s"}${points ? ` · ${formatPoints(points)} pts` : ""}` +
-      `${handed ? ` · ${handed} handed over` : ""} · `;
+      `${handed ? ` · ${handed} handed over` : ""}${worked ? ` · ${worked} worked on` : ""} · `;
   } else {
     current = escapeHtml(spoke.size ? "Everyone spoke" : "Who starts?");
   }
