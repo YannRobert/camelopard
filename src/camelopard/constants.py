@@ -79,6 +79,8 @@ FIELD_ROLES = (
     "installedAt",
     "acceptedAt",
 )
+# Automation accounts set apart at the stand-up (automation in the configuration): a few rules' actors.
+MAX_AUTOMATION_ACCOUNTS = 20
 # Maximum number of board views: with the whole-board view, they fit on keys 1 to 9.
 MAX_VIEWS = 8
 # The history (changelog) comes in the same request as the issue: no extra call. So do the transitions out

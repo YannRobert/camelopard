@@ -37,7 +37,7 @@ class LoadConfigTest(unittest.TestCase):
             )
 
     def test_valid_configuration(self):
-        self.write('{"jiraHost": "https://jira.example.com", "boardId": 42, "fields": {"developer": "customfield_1"}, "recentMinutes": 60}')
+        self.write('{"jiraHost": "https://jira.example.com", "boardId": 42, "fields": {"developer": "customfield_1"}, "recentMinutes": 60, "automation": ["automation"]}')
         config = load_config(
             self.path,
             required=True
@@ -77,6 +77,9 @@ class LoadConfigTest(unittest.TestCase):
             "recentMinutes not an integer": '{"recentMinutes": "120"}',
             "negative recentMinutes": '{"recentMinutes": -1}',
             "recentMinutes over a week": '{"recentMinutes": 100000}',
+            "automation not a list": '{"automation": "automation"}',
+            "blank automation login": '{"automation": [" "]}',
+            "too many automation accounts": '{"automation": [%s]}' % ", ".join('"bot%d"' % i for i in range(21)),
             "too many views": '{"views": [%s]}' % ", ".join('{"label": "V", "from": "C%d"}' % i for i in range(9)),
         }
         for case, content in invalid.items():

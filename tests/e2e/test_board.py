@@ -228,17 +228,24 @@ class BoardTest(unittest.TestCase):
 
     def test_the_stand_up_gives_the_floor_to_whoever_acted_without_any_issue(self):
         self.page.keyboard.press("Shift+S")
-        self.page.locator(f'#standup-people button[title^="{dataset.BOT[1]}"]').click()
+        bot = self.page.locator(f'#standup-people button[title^="{dataset.BOT[1]}"]')
+        # An automation account, as configured: set apart from the people, and never next in the round.
+        expect(self.page.locator(f'#standup-people .sep ~ button[title^="{dataset.BOT[1]}"]')).to_have_count(1)
+        self.page.keyboard.press("Enter")
+        expect(bot).not_to_have_attribute(
+            "aria-pressed",
+            "true"
+        )
+        bot.click()
         expect(self.page.locator("#standup-changes")).to_contain_text("Linked to the release automatically.")
         # Commenting hands nothing over: the card is there for what they did on it.
         expect(self.page.locator(f'#board .card[data-key="{self.automated}"] .handed')).to_have_text("worked on")
 
-    def test_the_stand_up_ends_on_the_unassigned_issues_set_apart(self):
+    def test_the_stand_up_sets_the_unassigned_issues_apart(self):
         self.page.keyboard.press("Shift+S")
-        last = self.page.locator("#standup-people > :last-child")
-        expect(last.locator(".label")).to_have_text("Unassigned issues")
-        expect(self.page.locator("#standup-people > .sep + button")).to_have_count(1)
-        last.click()
+        unassigned = self.page.locator("#standup-people > .sep + button")
+        expect(unassigned.locator(".label")).to_have_text("Unassigned issues")
+        unassigned.click()
         expect(self.page.locator("#standup-changes h3")).to_have_text(re.compile(r"^Changes on unassigned issues since "))
 
     def test_question_mark_lists_the_keys_of_where_it_is_pressed(self):

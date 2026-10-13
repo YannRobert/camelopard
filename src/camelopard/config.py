@@ -1,4 +1,4 @@
-"""Configuration specific to a Jira instance: host, board, custom fields and board views.
+"""Configuration specific to a Jira instance: host, board, custom fields, board views and automation accounts.
 
 These values differ from one instance to another and do not belong in the repository: they are read from a
 JSON file in the user's configuration directory (see paths.py), which command-line options override.
@@ -6,7 +6,7 @@ JSON file in the user's configuration directory (see paths.py), which command-li
 import json
 import re
 
-from .constants import FIELD_ROLES, MAX_RECENT_MINUTES, MAX_VIEWS
+from .constants import FIELD_ROLES, MAX_AUTOMATION_ACCOUNTS, MAX_RECENT_MINUTES, MAX_VIEWS
 
 CUSTOM_FIELD = re.compile(r"^customfield_[0-9]+\Z")
 
@@ -42,7 +42,7 @@ def validate(
         config,
         source
 ):
-    unknown = set(config) - {"jiraHost", "boardId", "fields", "views", "recentMinutes"}
+    unknown = set(config) - {"jiraHost", "boardId", "fields", "views", "recentMinutes", "automation"}
     if unknown:
         raise ConfigError(f"{source}: unknown key(s): {', '.join(sorted(unknown))}")
     host = config.get("jiraHost")
@@ -63,6 +63,13 @@ def validate(
         # The field name ends up in the URL of Jira requests: nothing but a field id.
         if not (isinstance(field, str) and CUSTOM_FIELD.match(field)):
             raise ConfigError(f"{source}: fields.{role} must look like customfield_12345")
+    automation = config.get("automation", [])
+    if not (
+        isinstance(automation, list)
+        and len(automation) <= MAX_AUTOMATION_ACCOUNTS
+        and all(isinstance(login, str) and login.strip() for login in automation)
+    ):
+        raise ConfigError(f"{source}: automation must be a list of Jira logins, {MAX_AUTOMATION_ACCOUNTS} at most")
     validate_views(
         config.get("views", []),
         source

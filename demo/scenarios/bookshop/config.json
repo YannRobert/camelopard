@@ -15,5 +15,6 @@
   "views": [
     { "label": "Dev", "from": "To Do" },
     { "label": "QA", "from": "Ready for QA" }
-  ]
+  ],
+  "automation": ["automation"]
 }

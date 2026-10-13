@@ -17,5 +17,6 @@
     { "label": "Supplier", "from": "Sent to supplier" },
     { "label": "QA", "from": "Delivered to staging" },
     { "label": "Acceptance", "from": "Business acceptance" }
-  ]
+  ],
+  "automation": ["automation"]
 }

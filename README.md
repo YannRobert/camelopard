@@ -128,6 +128,10 @@ Creating it takes a few minutes with a text editor:
 
 - `recentMinutes` (optional, default `120`): the cards of issues changed in Jira for less than this many
   minutes get a colored edge on their right side, so that what colleagues just changed catches the eye. `0` turns it off.
+- `automation` (optional): the logins of the accounts Jira's automation rules act as, for instance
+  `["automation"]`. Nothing in Jira tells them from a person: listed here, they are set apart at the end of
+  the stand-up's round, after the unassigned issues, and the round passes over them; what they did is shown
+  when they are picked.
 
 `--jira-host` and `--board` override the file; `--config` points to another one.
 

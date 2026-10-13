@@ -111,6 +111,7 @@ def main():
             "boardId": board_id,
             "fields": custom_fields,
             "views": config.get("views", []),
+            "automation": config.get("automation", []),
         },
     }
     meter = RequestMeter()

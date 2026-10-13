@@ -18,6 +18,9 @@ import {
 } from "./logic.mjs";
 
 const CONFIG = JSON.parse(document.getElementById("config").textContent);
+// Accounts acting on their own, Jira's automation rules: nothing in Jira tells them from a person.
+const AUTOMATION = new Set((CONFIG.automation ?? []).map(login => login.toLowerCase()));
+const isAutomation = login => !!login && AUTOMATION.has(login.toLowerCase());
 // Custom fields by role (storyPoints, developer…): their id differs from one Jira instance to another. A
 // role missing from the configuration is simply not shown.
 const custom = (fields, role) => CONFIG.fields?.[role] ? fields?.[CONFIG.fields[role]] : undefined;
@@ -1907,7 +1910,7 @@ $("bulk").addEventListener("click", e => {
 
 // Everyone with an issue in the sprint, and everyone who acted on one since then without any assigned (who
 // writes the issues, sends them back, reassigns them: their day shows in what they did), by first name;
-// unassigned issues last.
+// then, set apart, the unassigned issues and the automation accounts.
 function standupPeople(
   board,
   activity
@@ -1923,7 +1926,11 @@ function standupPeople(
     for (const change of issue.changes) if (change.author?.name) add(change.author.name, change.author.displayName);
   }
   const people = [...names.keys()].sort((a, b) => names.get(a).localeCompare(names.get(b), undefined, { sensitivity: "base" }));
-  return board.issues.some(issue => !issue.assignee) ? [...people, null] : people;
+  return [
+    ...people.filter(login => !isAutomation(login)),
+    ...board.issues.some(issue => !issue.assignee) ? [null] : [],
+    ...people.filter(isAutomation),
+  ];
 }
 
 // Name and avatar of a person of the round, from one of their issues.
@@ -2059,7 +2066,8 @@ function nextSpeaker() {
   const from = index ?? -1;
   for (let step = 1; step <= count; step++) {
     const candidate = (from + step) % count;
-    if (candidate !== index && !spoke.has(candidate)) {
+    // What an automation did is looked at when asked, never as a turn of the round.
+    if (candidate !== index && !spoke.has(candidate) && !isAutomation(people[candidate])) {
       giveFloor(candidate);
       return;
     }
@@ -2080,6 +2088,8 @@ function standupMatches(query) {
   return starts.length ? starts.map(p => p.index) : people.filter(p => normalize(`${p.first} ${p.name} ${p.login ?? ""}`).includes(typed)).map(p => p.index);
 }
 
+const notPerson = login => login === null || isAutomation(login);
+
 function renderStandup() {
   const standup = state.standup;
   $("standup-toggle").setAttribute("aria-pressed", String(!!standup));
@@ -2087,7 +2097,7 @@ function renderStandup() {
   const board = currentBoard();
   if (!standup || !board) return;
   const { people, index, spoke } = standup;
-  const left = people.filter((_, i) => i !== index && !spoke.has(i)).length;
+  const left = people.filter((login, i) => i !== index && !spoke.has(i) && !isAutomation(login)).length;
   const matches = new Set(standupMatches($("standup-query").value));
   let current = "";
   let meta = "";
@@ -2117,8 +2127,8 @@ function renderStandup() {
       login
     );
     const classes = [i === index ? "current" : "", spoke.has(i) ? "spoke" : "", matches.has(i) ? "match" : ""].filter(Boolean).join(" ");
-    // Not one more person: a turn given to the issues nobody holds, set apart at the end.
-    const apart = login === null && i > 0 ? `<span class="sep" aria-hidden="true"></span>` : "";
+    // Not people: the issues nobody holds and the automation accounts, set apart at the end.
+    const apart = i > 0 && notPerson(login) && !notPerson(people[i - 1]) ? `<span class="sep" aria-hidden="true"></span>` : "";
     return `${apart}<button type="button" data-speaker="${i}" class="${classes}" aria-pressed="${i === index}"` +
       ` title="${escapeHtml(person.login ? person.name : "Unassigned issues")}${spoke.has(i) ? " (spoke)" : ""}">` +
       `${avatar(person.login, person.name, person.avatar)}<span class="label">${escapeHtml(person.first)}</span></button>`;
