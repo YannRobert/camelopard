@@ -183,6 +183,18 @@ class BoardTest(unittest.TestCase):
         self.assertTrue(avatars)
         self.assertTrue(all(dataset.PEOPLE[dataset.NEWCOMER] in title for title in avatars))
 
+    def test_people_list_keeps_its_photos_while_the_highlight_moves(self):
+        self.page.locator("#people-filter").click()
+        options = self.page.locator("#people-menu li")
+        # A mark on the elements themselves: rebuilt, the list would lose it with the photos it reloads.
+        options.evaluate_all("els => els.forEach(el => { el.kept = true; })")
+        options.nth(2).hover()
+        expect(options.nth(2)).to_have_class(re.compile(r"\bactive\b"))
+        self.page.keyboard.press("ArrowDown")
+        expect(options.nth(3)).to_have_class(re.compile(r"\bactive\b"))
+        expect(self.page.locator("#people-menu li.active")).to_have_count(1)
+        self.assertTrue(options.evaluate_all("els => els.every(el => el.kept)"))
+
     def test_arrows_change_issue_from_a_card_and_scroll_in_the_detail(self):
         self.cards().first.click()
         expect(self.page.locator("#panel")).to_be_visible()

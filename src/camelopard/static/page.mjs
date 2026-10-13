@@ -906,6 +906,18 @@ function renderPeopleMenu() {
   $(`people-option-${active}`)?.scrollIntoView({ block: "nearest" });
 }
 
+// Only the highlight moves: rebuilt at each move of the mouse, the list would reload every photo, drawn
+// again over its initials.
+function movePeopleActive(index) {
+  const menu = $("people-menu");
+  menu.querySelector("li.active")?.classList.remove("active");
+  state.peopleMenu.active = index;
+  const option = $(`people-option-${index}`);
+  option?.classList.add("active");
+  menu.setAttribute("aria-activedescendant", `people-option-${index}`);
+  option?.scrollIntoView({ block: "nearest" });
+}
+
 // Under its button, wherever the button is (line or popover); closed when the button is no longer shown.
 function placePeopleMenu() {
   const button = $("people-filter");
@@ -938,8 +950,7 @@ $("people-menu").addEventListener("click", e => {
 $("people-menu").addEventListener("mousemove", e => {
   const option = e.target.closest("li[data-index]");
   if (!option || Number(option.dataset.index) === state.peopleMenu.active) return;
-  state.peopleMenu.active = Number(option.dataset.index);
-  renderPeopleMenu();
+  movePeopleActive(Number(option.dataset.index));
 });
 // Arrows, Home/End, a letter to jump to the next name starting with it: what a native list does. The keys
 // stop here, so the board's own shortcuts (D, A, M…) do not fire while choosing.
@@ -968,8 +979,7 @@ $("people-menu").addEventListener("keydown", e => {
   e.preventDefault();
   e.stopPropagation();
   if (next !== null && state.peopleMenu) {
-    menu.active = next;
-    renderPeopleMenu();
+    movePeopleActive(next);
   }
 });
 window.addEventListener("resize", () => {
