@@ -1407,9 +1407,19 @@ function avatar(
   const initials = label.split(/\s+/).filter(Boolean).map(part => part[0]).join("").slice(0, 2).toUpperCase();
   const color = avatarColors.get(login) ?? AVATAR_COLORS[[...login].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) % AVATAR_COLORS.length, 7)];
   const image = personalAvatar(url);
-  const img = image ? `<img src="${escapeHtml(relayed(image))}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">` : "";
+  const img = image ? `<img src="${escapeHtml(relayed(image))}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : "";
   return `<span class="avatar" style="--avatar-bg:${color}" title="${escapeHtml(label)}">${escapeHtml(initials)}${img}</span>`;
 }
+
+// A photo that does not load leaves its initials: the page's CSP runs no inline onerror, and an error
+// does not bubble, hence one listener for all, catching it on the way down.
+document.addEventListener(
+  "error",
+  e => {
+    if (e.target instanceof HTMLImageElement && e.target.parentElement?.classList.contains("avatar")) e.target.remove();
+  },
+  true
+);
 
 const formatPoints = n => String(n);
 

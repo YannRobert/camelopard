@@ -199,6 +199,19 @@ class BoardTest(unittest.TestCase):
         expect(self.page.locator("#people-menu li.active")).to_have_count(1)
         self.assertTrue(options.evaluate_all("els => els.every(el => el.kept)"))
 
+    def test_a_photo_that_does_not_load_leaves_the_initials(self):
+        self.page.evaluate(
+            """() => document.body.insertAdjacentHTML(
+              "beforeend",
+              '<span class="avatar" id="broken-photo">AB<img src="/static/no-such-photo.png" alt=""></span>'
+            )"""
+        )
+        expect(self.page.locator("#broken-photo img")).to_have_count(0)
+        expect(self.page.locator("#broken-photo")).to_have_text("AB")
+        # The browser reports the missing photo itself: the one error this test expects.
+        self.assertEqual(len(self.errors), 1)
+        self.assertIn("404", self.errors.pop())
+
     def test_arrows_change_issue_from_a_card_and_scroll_in_the_detail(self):
         self.cards().first.click()
         expect(self.page.locator("#panel")).to_be_visible()
