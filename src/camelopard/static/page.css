@@ -354,6 +354,7 @@ a.btn { display: inline-block; color: var(--text); }
 .people-menu li[aria-selected="true"] .name::after { content: " ✓"; }
 .people-menu li .login { margin-left: auto; padding-left: 1rem; color: var(--faint); font-size: 0.75rem; }
 .people-menu li.everyone { color: var(--muted); border-bottom: 1px solid var(--border); margin-bottom: 0.2rem; }
+.people-menu li.apart { border-top: 1px solid var(--border); margin-top: 0.2rem; }
 .icon-btn {
   border: 0; background: none; color: var(--muted); cursor: pointer; font: inherit;
   padding: 0.2rem 0.35rem; border-radius: 4px;

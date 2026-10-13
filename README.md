@@ -249,7 +249,9 @@ browser ──► http://localhost:8766 ──► Jira
 
 - **Board in one call**: `allData.json`, the endpoint used by Jira's own board page. Its labels come from
   the local copy. Quick filters on the assignee, the labels or the issue type are evaluated by the page;
-  any other costs another whole board, asked for only while the filter is switched on.
+  any other costs another whole board, asked for only while the filter is switched on. Whoever holds issues
+  on the board without a quick filter on them is added to the People list, after the board's filters, as a
+  filter on the assignee the page evaluates too.
 - **Local copy**: one JSON file per issue. Full sweep at startup, then once a day; in between, only
   modified issues are resynced. Jira cannot notify a local tool (its webhooks need an administrator and an
   address Jira can reach), so it is asked: every 5 minutes, and every 30 seconds (`--watch-interval`) while

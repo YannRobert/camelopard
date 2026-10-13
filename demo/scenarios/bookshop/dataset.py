@@ -26,6 +26,8 @@ PEOPLE = {
     "farid": "Farid Haddad",
     "grace": "Grace Okafor",
 }
+# Joined last: the board has no quick filter on them, the page finds them on the issues.
+NEWCOMER = "farid"
 DEVELOPERS = ("alice", "bruno", "chloe", "dmitri", "farid")
 TESTERS = ("emma", "grace")
 REPORTERS = ("alice", "bruno", "grace")
@@ -104,10 +106,12 @@ EPICS = (
 
 QUICK_FILTERS = (
     # The page evaluates assignee filters itself; the others are asked to Jira (here, by the fake Jira).
-    # Teams usually add one filter per person, named after their first name.
+    # Teams usually add one filter per person, named after their first name; but for the last one to join,
+    # whom nobody thought of adding.
     *(
         {"id": 11 + index, "name": name.split()[0], "query": f"assignee = {login}", "description": ""}
         for index, (login, name) in enumerate(PEOPLE.items())
+        if login != NEWCOMER
     ),
     {"id": 1, "name": "Only my issues", "query": "assignee = currentUser()", "description": ""},
     {"id": 2, "name": "Unassigned", "query": "assignee is EMPTY", "description": ""},

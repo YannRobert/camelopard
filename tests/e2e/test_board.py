@@ -167,6 +167,22 @@ class BoardTest(unittest.TestCase):
         self.page.locator("#people-filter").click()
         expect(self.page.locator("#people-menu li.everyone")).to_have_attribute("aria-selected", "false")
 
+    def test_people_menu_adds_who_the_board_has_no_filter_on(self):
+        self.page.locator("#people-filter").click()
+        newcomer = self.page.locator("#people-menu li.apart")
+        # After the board's own filters, set apart: the only one listed there.
+        expect(newcomer.locator(".name")).to_have_text(dataset.PEOPLE[dataset.NEWCOMER])
+        expect(self.page.locator("#people-menu li.apart ~ li")).to_have_count(0)
+        newcomer.click()
+        expect(self.page.locator("#people-filter")).to_contain_text(dataset.PEOPLE[dataset.NEWCOMER])
+        self.assertIn(
+            f"qf=%40{dataset.NEWCOMER}",
+            self.page.url
+        )
+        avatars = self.page.locator("#board .card[data-key] .avatar").evaluate_all("els => els.map(e => e.title)")
+        self.assertTrue(avatars)
+        self.assertTrue(all(dataset.PEOPLE[dataset.NEWCOMER] in title for title in avatars))
+
     def test_arrows_change_issue_from_a_card_and_scroll_in_the_detail(self):
         self.cards().first.click()
         expect(self.page.locator("#panel")).to_be_visible()

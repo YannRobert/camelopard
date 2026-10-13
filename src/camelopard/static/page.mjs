@@ -103,6 +103,8 @@ const THEME_KEY = "sprint-board.theme";
 const VIEW_KEY = "sprint-board.view";
 // Colleagues' quick filters shown as buttons up to this many; past it, they go in one list.
 const PEOPLE_AS_BUTTONS = 4;
+// In the URL's quick filters, beside the board's ids: someone on the board none of its filters names.
+const DETECTED_PREFIX = "@";
 // Past this many issues, the bell's count reads "99+": the exact number is in its title and panel.
 const ACTIVITY_BADGE_MAX = 99;
 // Cards side by side in a column (the .board.lanes and .cards rules): a card's narrowest width, the gap
@@ -161,7 +163,7 @@ const state = {
   boards: {},
   defaultSprint: null,
   sprintId: Number(params.get("sprint")) || null,
-  quick: new Set((params.get("qf") || "").split(",").filter(Boolean).map(Number)),
+  quick: new Set((params.get("qf") || "").split(",").filter(Boolean).map(quickId)),
   // Quick filters whose issues are being asked to Jira.
   filtersLoading: new Set(),
   labelOrder: readLabelOrder(),
@@ -639,8 +641,39 @@ function renderHeader() {
 
 const sprintOf = board => board?.sprints.find(s => s.id === board.sprintId);
 
+// The board's quick filters by their Jira id; "@login" for someone on the board the board's filters do not
+// name: a filter on the assignee the page makes up and evaluates itself, never sent to Jira.
+function quickId(text) {
+  return text.startsWith(DETECTED_PREFIX) ? text : Number(text);
+}
+
+function quickFilter(id) {
+  if (typeof id === "string") {
+    const login = id.slice(DETECTED_PREFIX.length);
+    return { id, name: login, query: `assignee = "${login}"`, description: "" };
+  }
+  return state.meta?.quickFilters.find(f => f.id === id);
+}
+
+// Who holds issues on the board without a filter of the board's on them: someone who joined after the
+// filters were made, or whom nobody thought of. Automation accounts are no one to filter on.
+function detectedFilters(
+  board,
+  filters
+) {
+  const named = new Set(filters.map(f => f.query.match(ASSIGNEE_IS)).filter(Boolean).map(m => (m[1] ?? m[2]).toLowerCase()));
+  if (filters.some(isMyFilter)) named.add(state.meta.me.toLowerCase());
+  const people = new Map();
+  for (const issue of board?.issues ?? []) {
+    const login = issue.assignee;
+    if (!login || isAutomation(login) || named.has(login.toLowerCase()) || people.has(login.toLowerCase())) continue;
+    people.set(login.toLowerCase(), { ...quickFilter(DETECTED_PREFIX + login), name: issue.assigneeName ?? login });
+  }
+  return [...people.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+}
+
 function isPersonFilter(id) {
-  const filter = state.meta?.quickFilters.find(f => f.id === id);
+  const filter = quickFilter(id);
   return Boolean(filter) && [ASSIGNEE_IS_ME, ASSIGNEE_IS, ASSIGNEE_NOT_IN, ASSIGNEE_EMPTY].some(pattern => pattern.test(filter.query));
 }
 
@@ -708,7 +741,14 @@ function renderFilters() {
   const named = filters.filter(f => ASSIGNEE_IS.test(f.query) && !isMyFilter(f));
   const listed = new Set(named.length > PEOPLE_AS_BUTTONS ? named.map(f => f.id) : []);
   const shown = filters.filter(f => !listed.has(f.id));
-  const people = listed.size ? peopleHtml(named) : "";
+  const detected = detectedFilters(
+    board,
+    filters
+  );
+  const people = listed.size || detected.length ? peopleHtml(
+    named.filter(f => listed.has(f.id)),
+    detected
+  ) : "";
   const labels = labelsHtml(board);
   const items = shown.map(f => ({
     person: isPersonFilter(f.id),
@@ -802,15 +842,22 @@ new ResizeObserver(fitLanes).observe($("board"));
 
 // The colleagues' filters as one list: a native list cannot show the avatars, which tell apart people the
 // board's filters name by a nickname. The button shows the one switched on.
-function peopleHtml(named) {
-  const people = named.map(personEntry);
+// The board's filters first, in their order, then those the page found on the board, set apart.
+function peopleHtml(
+  named,
+  detected
+) {
+  const people = [
+    ...named.map(personEntry),
+    ...detected.map((filter, index) => ({ ...personEntry(filter), detected: true, apart: index === 0 && named.length > 0 })),
+  ];
   const on = people.find(p => state.quick.has(p.id));
   state.peopleEntries = [{ id: null, name: "Everyone" }, ...people];
   if (state.peopleMenu) state.peopleMenu.options = state.peopleEntries;
   const chevron = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9 L12 16 L19 9"/></svg>`;
-  return `<button type="button" id="people-filter" class="more-labels people${on ? " active" : ""}" data-count="${named.length}" ` +
+  return `<button type="button" id="people-filter" class="more-labels people${on ? " active" : ""}" data-count="${people.length}" ` +
     `aria-haspopup="listbox" aria-controls="people-menu" aria-expanded="${Boolean(state.peopleMenu)}" title="Filter by assignee">` +
-    (on ? `${avatar(on.login, on.fullName, on.avatar)}${escapeHtml(on.name)}` : `People · ${named.length}`) + `${chevron}</button>`;
+    (on ? `${avatar(on.login, on.fullName, on.avatar)}${escapeHtml(on.name)}` : `People · ${people.length}`) + `${chevron}</button>`;
 }
 
 // A filter's person: its login is in its query, whatever name the board gives the filter; name and photo come
@@ -851,9 +898,9 @@ function renderPeopleMenu() {
       ? `<span class="name">Everyone</span>`
       : `${avatar(p.login, p.fullName, p.avatar)}<span class="name">${escapeHtml(p.name)}</span>` +
         `<span class="login">${escapeHtml(p.login)}</span>`;
-    const classes = [p.id === null ? "everyone" : "", index === active ? "active" : ""].filter(Boolean).join(" ");
+    const classes = [p.id === null ? "everyone" : "", p.apart ? "apart" : "", index === active ? "active" : ""].filter(Boolean).join(" ");
     return `<li role="option" id="people-option-${index}" data-index="${index}" class="${classes}" ` +
-      `aria-selected="${selected}">${content}</li>`;
+      `aria-selected="${selected}"${p.detected ? ` title="On the board's issues, with no quick filter of the board's"` : ""}>${content}</li>`;
   }).join("");
   $("people-menu").setAttribute("aria-activedescendant", `people-option-${active}`);
   $(`people-option-${active}`)?.scrollIntoView({ block: "nearest" });
@@ -1135,7 +1182,7 @@ function visibleIssues(board) {
   // Nobody speaking yet (or any more): the stand-up shows the whole board.
   const speaking = state.standup?.index ?? null;
   const speaker = speaking === null ? undefined : state.standup.people[speaking];
-  const active = (state.meta?.quickFilters ?? []).filter(f => state.quick.has(f.id) && !(speaker !== undefined && isPersonFilter(f.id))).map(f => filterPredicate(
+  const active = [...state.quick].map(quickFilter).filter(f => f && !(speaker !== undefined && isPersonFilter(f.id))).map(f => filterPredicate(
     f,
     board
   ));
@@ -2953,7 +3000,7 @@ document.addEventListener("click", e => {
   const quick = e.target.closest("[data-qf]");
   if (quick) {
     state.filtersOpen = false;
-    const id = Number(quick.dataset.qf);
+    const id = quickId(quick.dataset.qf);
     if (state.quick.has(id)) state.quick.delete(id);
     else switchOnFilter(id);
     quickFiltersChanged();
