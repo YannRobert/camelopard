@@ -1941,7 +1941,7 @@ function standupPerson(
   return {
     login,
     name: name ?? login,
-    first: login ? firstName(login, name) : "Unassigned",
+    first: login ? firstName(login, name) : "Unassigned issues",
     avatar: issue?.avatar,
   };
 }
@@ -2117,7 +2117,9 @@ function renderStandup() {
       login
     );
     const classes = [i === index ? "current" : "", spoke.has(i) ? "spoke" : "", matches.has(i) ? "match" : ""].filter(Boolean).join(" ");
-    return `<button type="button" data-speaker="${i}" class="${classes}" aria-pressed="${i === index}"` +
+    // Not one more person: a turn given to the issues nobody holds, set apart at the end.
+    const apart = login === null && i > 0 ? `<span class="sep" aria-hidden="true"></span>` : "";
+    return `${apart}<button type="button" data-speaker="${i}" class="${classes}" aria-pressed="${i === index}"` +
       ` title="${escapeHtml(person.login ? person.name : "Unassigned issues")}${spoke.has(i) ? " (spoke)" : ""}">` +
       `${avatar(person.login, person.name, person.avatar)}<span class="label">${escapeHtml(person.first)}</span></button>`;
   }).join("");
@@ -2145,7 +2147,7 @@ function renderStandup() {
   // The unassigned issues have nobody to report on them: only what happened to them.
   changesEl.innerHTML = (login === null ? "" : `<h3>Did since ${since}</h3>` +
     (did.length ? activityHtml(did) : `<p>No column move, assignment or comment since ${since}.</p>`)) +
-    `<h3>${login === null ? "Changed" : "Changed by others on their issues"} since ${since}</h3>` +
+    `<h3>${login === null ? "Changes on unassigned issues" : "Changed by others on their issues"} since ${since}</h3>` +
     (others.length ? activityHtml(others) : `<p>Nothing.</p>`);
 }
 

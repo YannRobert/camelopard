@@ -164,6 +164,7 @@ header .status { display: grid; width: 11.5rem; font-size: 0.8rem; line-height: 
 .standup .people button.spoke { opacity: 0.45; }
 .standup .people button.spoke .label::after { content: " ✓"; color: var(--accent); }
 .standup .people button.match { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.standup .people .sep { width: 1px; align-self: stretch; margin: 0.15rem 0.3rem; background: var(--border); }
 .standup .changes { margin-top: 0.45rem; max-height: 28vh; overflow-y: auto; font-size: 0.82rem; }
 .standup .changes[hidden] { display: none; }
 .standup .changes > p { margin: 0; color: var(--muted); }
