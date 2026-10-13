@@ -782,6 +782,8 @@ aside h4 { margin: 1.4rem 0 0.5rem; font-size: 0.8rem; text-transform: uppercase
 .diff.unified .sign { padding: 0.05rem 0; color: var(--muted); text-align: center; user-select: none; }
 .diff.unified tr.del td, .diff.split td.del { background: var(--diff-del); }
 .diff.unified tr.add td, .diff.split td.add { background: var(--diff-add); }
+/* An edited line keeps the page's background: only its changed words stand out, its number says it changed. */
+.diff.unified tr.edited td.text, .diff.unified tr.edited td.sign, .diff.split tr.edited td.text { background: none; }
 .diff tr.del .word, .diff td.del .word { background: var(--diff-del-word); border-radius: 2px; }
 .diff tr.add .word, .diff td.add .word { background: var(--diff-add-word); border-radius: 2px; }
 .diff.split td.empty { background: var(--bg); }

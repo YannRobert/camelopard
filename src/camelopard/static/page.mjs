@@ -2706,12 +2706,25 @@ function unifiedRows(block) {
     block,
     4
   );
-  const row = (type, line, html) => `<tr class="${type}">${lineNumber(line.before)}${lineNumber(line.after)}` +
+  const row = (type, line, html, edited = false) => `<tr class="${type}${edited ? " edited" : ""}">` +
+    `${lineNumber(line.before)}${lineNumber(line.after)}` +
     `<td class="sign">${{ same: "", del: "−", add: "+" }[type]}</td><td class="text">${html}</td></tr>`;
   if (block.type === "same") return block.lines.map(line => row("same", line, escapeHtml(line.text))).join("");
-  const pairs = pairLines(block);
-  return pairs.filter(pair => pair.del).map(pair => row("del", pair.del, pair.parts ? markedWords(pair.parts, "del") : escapeHtml(pair.del.text))).join("") +
-    pairs.filter(pair => pair.add).map(pair => row("add", pair.add, pair.parts ? markedWords(pair.parts, "add") : escapeHtml(pair.add.text))).join("");
+  // Between the unchanged lines a change may hold, its removed lines, then its added ones.
+  const runs = [[]];
+  for (const pair of pairLines(block)) {
+    if (pair.same) runs.push(pair, []);
+    else runs.at(-1).push(pair);
+  }
+  const lines = (pairs, side) => pairs.filter(pair => pair[side]).map(pair => row(
+    side,
+    pair[side],
+    pair.parts ? markedWords(pair.parts, side) : escapeHtml(pair[side].text),
+    Boolean(pair.parts)
+  )).join("");
+  return runs.map(run => Array.isArray(run)
+    ? lines(run, "del") + lines(run, "add")
+    : row("same", run.same, escapeHtml(run.same.text))).join("");
 }
 
 // Side by side: the former text on the left, the new one on the right, an edited line facing its old form.
@@ -2723,11 +2736,10 @@ function splitRows(block) {
   const side = (type, line, number, html) => line
     ? `<td class="no ${type}">${number}</td><td class="text ${type}">${html}</td>`
     : `<td class="no empty"></td><td class="text empty"></td>`;
-  if (block.type === "same") {
-    return block.lines.map(line => `<tr>${side("same", line, line.before, escapeHtml(line.text))}` +
-      `${side("same", line, line.after, escapeHtml(line.text))}</tr>`).join("");
-  }
-  return pairLines(block).map(pair => `<tr>` +
+  const same = line => `<tr>${side("same", line, line.before, escapeHtml(line.text))}` +
+    `${side("same", line, line.after, escapeHtml(line.text))}</tr>`;
+  if (block.type === "same") return block.lines.map(same).join("");
+  return pairLines(block).map(pair => pair.same ? same(pair.same) : `<tr${pair.parts ? ` class="edited"` : ""}>` +
     side("del", pair.del, pair.del?.before, pair.parts ? markedWords(pair.parts, "del") : escapeHtml(pair.del?.text)) +
     side("add", pair.add, pair.add?.after, pair.parts ? markedWords(pair.parts, "add") : escapeHtml(pair.add?.text)) +
     `</tr>`).join("");

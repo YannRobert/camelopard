@@ -99,6 +99,11 @@ export const DIFF_CONTEXT = 3;
 // Two lines are shown as one edited line, their changed words marked, only when they share at least this
 // share of their characters: marking most of a line rewritten whole hides it rather than shows it.
 export const DIFF_SIMILAR = 0.5;
+// Beyond this many removed × added lines in one change, its lines are not compared for likeness (each comparison
+// being a word diff of its own): they face each other row by row, none marked as edited.
+export const DIFF_MAX_PAIRS = 20_000;
+// What an unchanged blank line weighs when matching a change's lines, an edited line weighing its likeness.
+export const DIFF_BLANK_WEIGHT = 0.01;
 
 // Longest common subsequence of two arrays → [type, indexBefore, indexAfter], "del" before "add" within a
 // change so that a rewritten line reads removed then added.
@@ -202,9 +207,35 @@ export function diffWords(
 
 // Whether two lines are one line edited (its changed words worth marking) rather than two different lines.
 export function similarLines(parts) {
+  return likeness(parts) >= DIFF_SIMILAR;
+}
+
+// The share of the longer of two lines that they have in common, from 0 to 1.
+export function likeness(parts) {
   const length = type => parts.filter(p => p.type === type || p.type === "same").reduce((sum, p) => sum + p.text.length, 0);
   const kept = parts.filter(p => p.type === "same" && p.text.trim()).reduce((sum, p) => sum + p.text.length, 0);
-  return kept >= DIFF_SIMILAR * Math.max(length("del"), length("add"), 1);
+  return kept / Math.max(length("del"), length("add"), 1);
+}
+
+// Blank lines are the commonest of lines: the line diff keeps them unchanged even between two changes, which
+// cuts a rewritten passage into pieces too small for its lines to find their former versions (a list turned
+// into a table, each item an edited line). A change, blank lines alone, then a change are one change, the blank
+// lines on both sides of it.
+function joinChanges(blocks) {
+  const joined = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
+    const previous = joined.at(-1);
+    const gap = block.type === "same" && block.lines.every(line => !line.text.trim());
+    if (gap && previous?.type === "change" && blocks[i + 1]?.type === "change") {
+      const next = blocks[++i];
+      previous.del.push(...block.lines, ...next.del);
+      previous.add.push(...block.lines, ...next.add);
+    } else {
+      joined.push(block);
+    }
+  }
+  return joined;
 }
 
 // The lines in blocks: {type: "same", lines} or {type: "change", del, add}; with a context, the middle of a
@@ -223,11 +254,12 @@ export function diffBlocks(
     }
     (kind === "same" ? block.lines : block[line.type]).push(line);
   }
-  if (context === Infinity) return blocks;
-  return blocks.flatMap((block, index) => {
+  const joined = joinChanges(blocks);
+  if (context === Infinity) return joined;
+  return joined.flatMap((block, index) => {
     if (block.type !== "same") return [block];
     const head = index === 0 ? 0 : context;
-    const tail = index === blocks.length - 1 ? 0 : context;
+    const tail = index === joined.length - 1 ? 0 : context;
     // Folding fewer lines than the fold's own line saves nothing.
     if (block.lines.length <= head + tail + 1) return [block];
     return [
@@ -246,32 +278,78 @@ export function diffStats(lines) {
 }
 
 // A change block's lines as rows: a removed line next to the added line it became, when they are alike
-// (parts: their word diff), otherwise each alone. Lines left alone on both sides still share rows, so that a
-// side-by-side view lays a rewritten passage next to its former version.
+// (parts: their word diff), otherwise each alone; an unchanged blank line the change holds stays one row
+// (same). Lines are matched in order, so that an edited line far down a rewritten passage still finds its
+// former version; among the ways to match them, the one keeping the most text in common wins, not the one
+// with the most pairs: a line alike to two new ones faces the closer. Lines left alone on both sides still
+// share rows, so that a side-by-side view lays a rewritten passage next to its former version.
 export function pairLines(block) {
-  const rows = [];
-  let next = 0;
-  for (const del of block.del) {
-    let match = -1;
-    let parts = null;
-    for (let k = next; k < block.add.length && match < 0; k++) {
-      const candidate = diffWords(
-        del.text,
-        block.add[k].text
+  const compare = block.del.length * block.add.length <= DIFF_MAX_PAIRS;
+  const n = block.del.length;
+  const m = block.add.length;
+  const words = new Map();
+  const wordsOf = (i, j) => words.get(i * m + j);
+  // How much facing del[i] with add[j] is worth: 0 when they are not alike.
+  const score = (i, j) => {
+    const del = block.del[i];
+    const add = block.add[j];
+    // A blank line kept between two changes says nothing of what became of the text: it counts for little,
+    // or it would make the passages either side of it face themselves rather than their former versions.
+    if (del.type === "same" || add.type === "same") return del === add ? DIFF_BLANK_WEIGHT : 0;
+    if (!compare) return 0;
+    const parts = diffWords(
+      del.text,
+      add.text
+    );
+    const share = likeness(parts);
+    if (share < DIFF_SIMILAR) return 0;
+    words.set(
+      i * m + j,
+      parts
+    );
+    return share;
+  };
+  // best[i * (m + 1) + j]: the most that del[i…] and add[j…] can keep in common.
+  const best = new Float64Array((n + 1) * (m + 1));
+  const scores = new Float64Array(n * m);
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      scores[i * m + j] = score(
+        i,
+        j
       );
-      if (similarLines(candidate)) {
-        match = k;
-        parts = candidate;
-      }
+      best[i * (m + 1) + j] = Math.max(
+        best[(i + 1) * (m + 1) + j],
+        best[i * (m + 1) + j + 1],
+        scores[i * m + j] && scores[i * m + j] + best[(i + 1) * (m + 1) + j + 1]
+      );
     }
-    if (match < 0) {
-      rows.push({ del, add: null, parts: null });
-      continue;
-    }
-    while (next < match) rows.push({ del: null, add: block.add[next++], parts: null });
-    rows.push({ del, add: block.add[next++], parts });
   }
-  while (next < block.add.length) rows.push({ del: null, add: block.add[next++], parts: null });
+  const rows = [];
+  const dels = [];
+  const adds = [];
+  // A rewritten passage reads removed then added.
+  const flush = () => {
+    rows.push(...dels.splice(0), ...adds.splice(0));
+  };
+  let i = 0;
+  let j = 0;
+  while (i < n || j < m) {
+    const here = best[i * (m + 1) + j];
+    if (i < n && j < m && scores[i * m + j] && here === scores[i * m + j] + best[(i + 1) * (m + 1) + j + 1]) {
+      flush();
+      rows.push(block.del[i] === block.add[j]
+        ? { same: block.del[i], del: null, add: null, parts: null }
+        : { del: block.del[i], add: block.add[j], parts: wordsOf(i, j) });
+      i++;
+      j++;
+    } else if (j >= m || (i < n && here === best[(i + 1) * (m + 1) + j])) {
+      dels.push({ del: block.del[i++], add: null, parts: null });
+    } else {
+      adds.push({ del: null, add: block.add[j++], parts: null });
+    }
+  }
+  flush();
   // Removed lines alone followed by added lines alone: side by side, row by row.
   const merged = [];
   for (let i = 0; i < rows.length;) {
@@ -284,7 +362,11 @@ export function pairLines(block) {
     const adds = [];
     while (i < rows.length && rows[i].add && !rows[i].del) adds.push(rows[i++].add);
     for (let k = 0; k < Math.max(dels.length, adds.length); k++) {
-      merged.push({ del: dels[k] ?? null, add: adds[k] ?? null, parts: null });
+      const [del, add] = [dels[k] ?? null, adds[k] ?? null];
+      // Matching lines in order leaves some blank lines out (nothing to tell one from another): facing each
+      // other, they read unchanged.
+      const blank = del && add && !del.text.trim() && !add.text.trim();
+      merged.push({ del, add, parts: blank ? [{ type: "same", text: "" }] : null });
     }
   }
   return merged;

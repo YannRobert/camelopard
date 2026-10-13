@@ -256,4 +256,33 @@ describe("pairLines", () => {
     assert.equal(rows[0].parts, null);
     assert.ok(rows[0].del && rows[0].add);
   });
+
+  it("finds an edited line's former version across the blank lines that stayed between changes", () => {
+    const rows = pairLines(change(
+      "x\n\nh3. Files\n\n* An empty file is rejected.\n\nh3. Lines\n\n* A line without fault replaces the reference.",
+      "x\n\n||Criterion||State||\n|An empty file is rejected.|Done|\n|A line without fault replaces the reference.|To do|"
+    ));
+    const edited = rows.filter(row => row.parts).map(row => row.add.text);
+    assert.deepEqual(
+      edited,
+      ["|An empty file is rejected.|Done|", "|A line without fault replaces the reference.|To do|"]
+    );
+  });
+
+  it("faces a line with the closest of the new lines it is alike to, not the first", () => {
+    const rows = pairLines(change(
+      "x\nThe nightly job sends the daily report to the whole team",
+      "x\nThe nightly job sends the report\nThe nightly job sends the daily report to the whole team today"
+    ));
+    const pair = rows.find(row => row.parts);
+    assert.equal(pair.add.text, "The nightly job sends the daily report to the whole team today");
+  });
+
+  it("keeps a blank line unchanged between the changes it sits in", () => {
+    const rows = pairLines(change(
+      "x\nOne old line\n\nAnother old line",
+      "x\nOne new thing\n\nAnother new thing\nAnd more"
+    ));
+    assert.ok(rows.some(row => row.same && row.same.text === ""));
+  });
 });
