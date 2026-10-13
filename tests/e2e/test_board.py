@@ -171,10 +171,14 @@ class BoardTest(unittest.TestCase):
         self.page.locator("#people-filter").click()
         newcomer = self.page.locator("#people-menu li.apart")
         # After the board's own filters, set apart: the only one listed there.
-        expect(newcomer.locator(".name")).to_have_text(dataset.PEOPLE[dataset.NEWCOMER])
+        expect(newcomer.locator(".name")).to_have_text(dataset.PEOPLE[dataset.NEWCOMER].split()[0])
+        expect(newcomer).to_have_attribute(
+            "title",
+            re.compile(f"^{dataset.PEOPLE[dataset.NEWCOMER]}:")
+        )
         expect(self.page.locator("#people-menu li.apart ~ li")).to_have_count(0)
         newcomer.click()
-        expect(self.page.locator("#people-filter")).to_contain_text(dataset.PEOPLE[dataset.NEWCOMER])
+        expect(self.page.locator("#people-filter")).to_contain_text(dataset.PEOPLE[dataset.NEWCOMER].split()[0])
         self.assertIn(
             f"qf=%40{dataset.NEWCOMER}",
             self.page.url

@@ -667,7 +667,11 @@ function detectedFilters(
   for (const issue of board?.issues ?? []) {
     const login = issue.assignee;
     if (!login || isAutomation(login) || named.has(login.toLowerCase()) || people.has(login.toLowerCase())) continue;
-    people.set(login.toLowerCase(), { ...quickFilter(DETECTED_PREFIX + login), name: issue.assigneeName ?? login });
+    // By first name, as the board's filters usually go: the login beside it tells namesakes apart.
+    people.set(login.toLowerCase(), { ...quickFilter(DETECTED_PREFIX + login), name: firstName(
+      login,
+      issue.assigneeName
+    ) });
   }
   return [...people.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
 }
@@ -900,7 +904,7 @@ function renderPeopleMenu() {
         `<span class="login">${escapeHtml(p.login)}</span>`;
     const classes = [p.id === null ? "everyone" : "", p.apart ? "apart" : "", index === active ? "active" : ""].filter(Boolean).join(" ");
     return `<li role="option" id="people-option-${index}" data-index="${index}" class="${classes}" ` +
-      `aria-selected="${selected}"${p.detected ? ` title="On the board's issues, with no quick filter of the board's"` : ""}>${content}</li>`;
+      `aria-selected="${selected}"${p.detected ? ` title="${escapeHtml(p.fullName)}: on the board's issues, with no quick filter of the board's"` : ""}>${content}</li>`;
   }).join("");
   $("people-menu").setAttribute("aria-activedescendant", `people-option-${active}`);
   $(`people-option-${active}`)?.scrollIntoView({ block: "nearest" });
