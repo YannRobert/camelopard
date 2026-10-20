@@ -37,6 +37,12 @@
   /* Raised above the cards it covers: lighter than them in the dark theme, white in the light one. */
   --popover: #463f36;
   --popover-shadow: 0 12px 32px rgba(0, 0, 0, .6);
+  /* A hairline lighter than any surface: the popover's edge shows over the board without a heavy border. */
+  --popover-edge: rgba(255, 255, 255, .1);
+  /* On the raised surface: the board's dividers vanish in it and its secondary text falls under 4.5:1. */
+  --popover-border: #5e554a;
+  --popover-muted: #c4b6a5;
+  --popover-faint: #bfb09f;
 }
 :root[data-theme="light"] {
   color-scheme: light;
@@ -68,6 +74,10 @@
   --recent: #d9860f;
   --popover: #ffffff;
   --popover-shadow: 0 12px 32px rgba(60, 40, 20, .28);
+  --popover-edge: rgba(60, 40, 20, .14);
+  --popover-border: var(--border);
+  --popover-muted: var(--muted);
+  --popover-faint: var(--faint);
 }
 * { box-sizing: border-box; }
 /* The base size follows the screen width: the board stays readable from a laptop to a wall screen. */
@@ -137,10 +147,13 @@ header .status { display: grid; width: 11.5rem; font-size: 0.8rem; line-height: 
 .load-btn b { color: var(--text); font-weight: 600; min-width: 1.6em; text-align: right; }
 .load-panel {
   position: absolute; top: calc(100% + 0.4rem); right: 0; z-index: 30; min-width: 19rem;
-  padding: 0.7rem 0.8rem; border: 1px solid var(--border); border-radius: 0.6rem;
-  background: var(--column); color: var(--text); box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+  padding: 0.7rem 0.8rem; border: 1px solid var(--popover-edge); border-radius: 0.6rem;
+  background: var(--popover); color: var(--text); box-shadow: var(--popover-shadow);
 }
 .load-panel[hidden] { display: none; }
+.load-panel, .filters.filters-more, .people-menu {
+  --border: var(--popover-border); --muted: var(--popover-muted); --faint: var(--popover-faint);
+}
 /* Button in the left half of the window (the header wraps on a narrow one): the panel opens towards the
    right, rather than past the left edge of the screen. */
 .load-panel.from-left { right: auto; left: 0; }
@@ -274,7 +287,7 @@ a.btn { display: inline-block; color: var(--text); }
 .toolbar { position: relative; }
 .filters.filters-more {
   position: absolute; top: calc(100% - 0.4rem); right: 1.2rem; z-index: 30; flex-wrap: wrap; overflow: visible;
-  white-space: normal; row-gap: 0.4rem; padding: 0.6rem 0.7rem; border: 1px solid var(--chip); border-radius: 0.6rem;
+  white-space: normal; row-gap: 0.4rem; padding: 0.6rem 0.7rem; border: 1px solid var(--popover-edge); border-radius: 0.6rem;
   background: var(--popover); box-shadow: var(--popover-shadow);
 }
 .filters.filters-more[hidden] { display: none; }
@@ -349,7 +362,7 @@ a.btn { display: inline-block; color: var(--text); }
 /* Fixed, not inside the filters: the line hides what overflows it, and the popover moves its children. */
 .people-menu {
   position: fixed; z-index: 40; min-width: 14rem; overflow-y: auto; margin: 0; padding: 0.25rem 0; list-style: none;
-  font-size: 0.85rem; background: var(--popover); border: 1px solid var(--chip); border-radius: 0.5rem;
+  font-size: 0.85rem; background: var(--popover); border: 1px solid var(--popover-edge); border-radius: 0.5rem;
   box-shadow: var(--popover-shadow); outline: none; scrollbar-width: thin; scrollbar-color: var(--chip) transparent;
 }
 .people-menu[hidden] { display: none; }
