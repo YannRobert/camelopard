@@ -12,6 +12,7 @@ import {
   diffWords,
   escapeHtml,
   formatSize,
+  issueKeyOf,
   latestSprint,
   normalize,
   pairLines,
@@ -350,5 +351,42 @@ describe("activityBy", () => {
   it("leaves the issues given untouched", () => {
     activityBy(issues, "mine", isMine);
     assert.equal(issues[0].changes.length, 2);
+  });
+});
+
+describe("issueKeyOf", () => {
+  const JIRA = "https://jira.example.org/jira";
+  const key = href => issueKeyOf(
+    href,
+    JIRA
+  );
+
+  it("finds the issue of Jira's page of it", () => {
+    assert.equal(key(`${JIRA}/browse/ABC-12`), "ABC-12");
+  });
+
+  it("keeps it whatever the page points to inside the issue", () => {
+    assert.equal(key(`${JIRA}/browse/ABC-12?focusedCommentId=3#comment-3`), "ABC-12");
+  });
+
+  it("works with Jira at the root of its host, given with a trailing slash", () => {
+    const found = issueKeyOf(
+      "https://jira.example.org/browse/X1-7",
+      "https://jira.example.org/"
+    );
+    assert.equal(found, "X1-7");
+  });
+
+  it("leaves the other pages of Jira to Jira", () => {
+    assert.equal(key(`${JIRA}/secure/RapidBoard.jspa?rapidView=1`), null);
+    assert.equal(key(`${JIRA}/browse/ABC`), null);
+    assert.equal(key(`${JIRA}/browse/ABC-12/attachments`), null);
+  });
+
+  it("leaves the links to elsewhere alone", () => {
+    assert.equal(key("https://other.example.org/jira/browse/ABC-12"), null);
+    assert.equal(key("https://jira.example.org/browse/ABC-12"), null);
+    assert.equal(key("mailto:someone@example.org"), null);
+    assert.equal(key("not a url"), null);
   });
 });

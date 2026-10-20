@@ -401,3 +401,23 @@ export function activityBy(
     .map(issue => ({ ...issue, changes: issue.changes.filter(kept) }))
     .filter(issue => issue.changes.length);
 }
+
+// The issue a link points to, when it is Jira's own page of one (jiraWeb/browse/KEY): the page opens it in
+// its panel rather than in a Jira tab. Null for any other link, a Jira page that is not an issue included.
+const ISSUE_KEY = /^[A-Z][A-Z0-9_]*-\d+$/;
+
+export function issueKeyOf(
+  href,
+  jiraWeb
+) {
+  let url, base;
+  try {
+    url = new URL(href);
+    base = new URL(jiraWeb.replace(/\/*$/, "/"));
+  } catch (ignored) {
+    return null;
+  }
+  if (url.origin !== base.origin || !url.pathname.startsWith(base.pathname + "browse/")) return null;
+  const key = decodeURIComponent(url.pathname.slice(base.pathname.length + "browse/".length));
+  return ISSUE_KEY.test(key) ? key : null;
+}

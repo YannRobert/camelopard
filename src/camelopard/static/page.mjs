@@ -10,6 +10,7 @@ import {
   diffWords,
   escapeHtml,
   formatSize,
+  issueKeyOf,
   latestSprint,
   normalize,
   pairLines,
@@ -281,6 +282,8 @@ function relayed(url) {
 }
 
 const browseUrl = key => `${CONFIG.jiraWeb}/browse/${encodeURIComponent(key)}`;
+// A link to an issue opens it in the panel; Jira stays one Ctrl + click away.
+const ISSUE_LINK_TITLE = "Open here · Ctrl + click: open in Jira";
 
 // ---------- Loading ----------
 
@@ -1736,6 +1739,7 @@ function prefetchLocal(key) {
 
 async function openDetail(key) {
   state.openKey = key;
+  writeUrl();
   state.pickAnchor = key;
   if (state.picker?.key !== key) state.picker = null;
   for (const el of document.querySelectorAll(".card.selected")) el.classList.remove("selected");
@@ -2541,6 +2545,7 @@ function closeDetail() {
   state.picker = null;
   state.openKey = null;
   state.openToken = null;
+  writeUrl();
   $("panel").hidden = true;
   if (state.sizeBeforeMiddle !== null) {
     state.maximized = state.sizeBeforeMiddle;
@@ -2616,7 +2621,7 @@ function renderDetail(
     ["Tester", custom(f, "tester") ? person(custom(f, "tester")) : null],
     ["Reporter", f ? person(f.reporter) : null],
     GROUP,
-    ["Epic", epic ? `<span class="epic" style="--epic:${EPIC_COLORS[epic.color] ?? "#c1c7d0"}">${escapeHtml(epic.text)}</span> <a href="${browseUrl(epic.key)}" target="_blank" rel="noopener">${escapeHtml(epic.key)}</a>` : null],
+    ["Epic", epic ? `<span class="epic" style="--epic:${EPIC_COLORS[epic.color] ?? "#c1c7d0"}">${escapeHtml(epic.text)}</span> <a href="${browseUrl(epic.key)}" target="_blank" rel="noopener" title="${ISSUE_LINK_TITLE}">${escapeHtml(epic.key)}</a>` : null],
     ["Sprints", sprintsHtml(custom(f, "sprints"))],
     ["Version", f?.fixVersions?.length ? f.fixVersions.map(v => `<span class="tag">${escapeHtml(v.name)}</span>`).join("") : null],
     ["Components", f?.components?.length ? f.components.map(c => `<span class="tag">${escapeHtml(c.name)}</span>`).join("") : null],
@@ -2691,7 +2696,7 @@ function linksHtml(f) {
     const status = issue.fields?.status;
     return `<li><span class="relation">${escapeHtml(relation)}</span>` +
       (issue.fields?.issuetype ? icon({ url: issue.fields.issuetype.iconUrl, name: issue.fields.issuetype.name }) : "") +
-      `<a href="${browseUrl(issue.key)}" target="_blank" rel="noopener">${escapeHtml(issue.key)}</a>` +
+      `<a href="${browseUrl(issue.key)}" target="_blank" rel="noopener" title="${ISSUE_LINK_TITLE}">${escapeHtml(issue.key)}</a>` +
       `<span class="summary" title="${escapeHtml(issue.fields?.summary ?? "")}">${escapeHtml(issue.fields?.summary ?? "")}</span>` +
       (status ? `<span class="status-pill ${escapeHtml(status.statusCategory?.key ?? "")}">${escapeHtml(status.name)}</span>` : "") +
       `</li>`;
@@ -3003,6 +3008,10 @@ function sanitize(html) {
     if (el.tagName === "A") {
       el.setAttribute("target", "_blank");
       el.setAttribute("rel", "noopener noreferrer");
+      if (issueKeyOf(
+        el.getAttribute("href") ?? "",
+        CONFIG.jiraWeb
+      )) el.setAttribute("title", ISSUE_LINK_TITLE);
     }
     if (el.tagName === "IMG") el.setAttribute("loading", "lazy");
   }
@@ -3065,6 +3074,7 @@ function writeUrl() {
   if (state.quick.size) p.set("qf", [...state.quick].join(","));
   if (state.labels.size) p.set("lb", [...state.labels].join(","));
   if (state.q) p.set("q", state.q);
+  if (state.openKey) p.set("issue", state.openKey);
   const query = p.toString();
   history.replaceState(null, "", query ? "?" + query : location.pathname);
 }
@@ -4350,6 +4360,16 @@ $("panel-content").addEventListener("mouseout", event => {
 $("panel-content").addEventListener("scroll", hidePreview, { passive: true, capture: true });
 
 $("panel-content").addEventListener("click", event => {
+  const link = event.target.closest("a[href]");
+  const linked = link && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey && issueKeyOf(
+    link.href,
+    CONFIG.jiraWeb
+  );
+  if (linked) {
+    event.preventDefault();
+    openDetail(linked);
+    return;
+  }
   if (event.target.closest(".assign")) openPicker();
   const diff = event.target.closest(".diff-open");
   if (diff) openDiff(Number(diff.dataset.diff));
@@ -4504,5 +4524,11 @@ $("autoRefresh").checked = state.autoRefresh;
 $("auto-refresh-label").title = `Reloads the data every ${AUTO_REFRESH_MS / 60000} minutes`;
 adoptNewerSnapshot();
 render();
+// ?issue=KEY: the address names the open issue, so a reload or a shared link opens it again.
+const linkedIssue = params.get("issue") && issueKeyOf(
+  browseUrl(params.get("issue")),
+  CONFIG.jiraWeb
+);
+if (linkedIssue) openDetail(linkedIssue);
 sharedRefresh({ olderThan: STALE_ON_FOCUS_MS });
 refreshLoad();

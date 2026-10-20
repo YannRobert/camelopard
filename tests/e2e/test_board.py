@@ -272,8 +272,8 @@ class BoardTest(unittest.TestCase):
         expect(timeline.locator(":scope > *")).to_have_count(counts)
         # The table of contents still reaches both, each with its count.
         expect(self.page.locator('#panel-sections [data-target="history"]')).to_be_visible()
+        # Reloaded, the page opens the issue again (its key is in the address), still in time order.
         self.page.reload()
-        self.page.locator(f'#board .card[data-key="{key}"]').click()
         expect(comments).to_contain_text("Comments and history")
         comments.locator(".timeline-toggle").click()
         expect(self.page.locator("#panel-content .timeline")).to_have_count(0)
@@ -320,6 +320,35 @@ class BoardTest(unittest.TestCase):
         self.page.reload()
         self.page.locator("#activity-btn").click()
         expect(self.page.locator('#activity-panel [data-scope="all"]')).to_have_attribute("aria-pressed", "true")
+
+    def test_a_link_to_an_issue_opens_it_here_unless_asked_for_jira(self):
+        key, other = [issue["key"] for issue in self.jira.board.issues if dataset.SPRINT_ID in issue["sprints"]][:2]
+        self.jira.board.comment(
+            key,
+            dataset.ME,
+            f"Same cause as {other}."
+        )
+        self.page.locator(f'#board .card[data-key="{key}"]').click()
+        self.page.locator("#panel-sync .resync").click()
+        link = self.page.locator(f'#panel-content a[href$="/browse/{other}"]').first
+        expect(link).to_have_attribute("title", re.compile("Ctrl"))
+        # Ctrl + click: Jira, in a tab of its own, the panel left as it was.
+        with self.context.expect_page() as jira_tab:
+            link.click(modifiers=["ControlOrMeta"])
+        self.assertIn(f"/browse/{other}", jira_tab.value.url)
+        jira_tab.value.close()
+        expect(self.page.locator("#panel-key")).to_have_text(key)
+        link.click()
+        expect(self.page.locator("#panel-key")).to_have_text(other)
+        self.assertEqual(self.page.evaluate("window.opened"), [])
+        self.assertEqual(len(self.context.pages), 1)
+        # The address names the open issue: reloaded or shared, it opens it again.
+        self.assertIn(f"issue={other}", self.page.url)
+        self.page.reload()
+        expect(self.page.locator("#panel-key")).to_have_text(other)
+        self.page.keyboard.press("Escape")
+        expect(self.page.locator("#panel")).to_be_hidden()
+        self.assertNotIn("issue=", self.page.url)
 
     def test_assigning_from_the_detail_writes_to_jira(self):
         card = self.page.locator("#board .card[data-key]:has(.avatar.none)").first

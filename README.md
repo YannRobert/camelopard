@@ -37,6 +37,11 @@ Jira when pasted into a mail or a chat). Picking a second card closes the detail
 then assigns the picked issues or moves them to a column, after a confirmation listing each one (and the
 issues no known path can move, left as is).
 
+**Following a link to an issue.** In the detail, a link to an issue (in its description, its comments,
+its epic or its links) opens that issue in the panel rather than in a Jira tab;
+Ctrl + click (Cmd + click on a Mac) still opens it in Jira. The address names the open issue
+(`?issue=KEY`): reloaded or shared, the page opens it again.
+
 **Reading what changed in a description.** Jira's history strikes the whole former text through, then
 gives the whole new one: past a few lines, the change is lost in them. In the detail's history, a change
 longer than a line reads "+3 −2 lines"; clicking it opens a dialog with only the lines that changed, as

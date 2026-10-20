@@ -28,6 +28,7 @@ FIRST_HISTORY_ID = 40000
 FIRST_ATTACHMENT_ID = 50000
 AVATAR_ID_BASE = 10100
 JIRA_DATE = "%Y-%m-%dT%H:%M:%S.000%z"
+ISSUE_KEY = re.compile(r"\b[A-Z][A-Z0-9]+-\d+\b")
 # Sprint dates in allData.json, as the page parses them.
 BOARD_DATE = "%d/%m/%Y %H:%M"
 # As Jira Server renders a {code} block.
@@ -723,9 +724,17 @@ class Board:
         }
         if "renderedFields" in expand:
             result["renderedFields"] = {
-                "description": render_wiki(issue["description"], self._attachment_urls(issue)),
+                "description": render_wiki(
+                    issue["description"],
+                    self._attachment_urls(issue),
+                    self.base
+                ),
                 "comment": {
-                    "comments": [{"id": c["id"], "body": render_wiki(c["body"], {})} for c in issue["comments"]],
+                    "comments": [{"id": c["id"], "body": render_wiki(
+                        c["body"],
+                        {},
+                        self.base
+                    )} for c in issue["comments"]],
                 },
             }
         if "changelog" in expand:
@@ -996,10 +1005,11 @@ def working_days(
 
 def render_wiki(
         text,
-        attachments
+        attachments,
+        base
 ):
     """Jira's wiki markup to HTML, for the subset the scenarios use: headings, lists, tables, code blocks,
-    embedded images, monospace, bold and italics."""
+    embedded images, monospace, bold and italics; issue keys become links to them, as Jira renders them."""
     out, list_tag, code = [], None, None
     for line in text.split("\n"):
         if code is not None:
@@ -1018,31 +1028,56 @@ def render_wiki(
                 out.append(f"<{tag}>")
             list_tag = tag
         if tag == "table":
-            out.append(table_row(line))
+            out.append(table_row(
+                line,
+                base
+            ))
         elif tag:
-            out.append(f"<li>{inline(line[2:])}</li>")
+            out.append("<li>" + inline(
+                line[2:],
+                base
+            ) + "</li>")
         elif line.startswith("{code"):
             code = []
         elif line.startswith("h3. "):
-            out.append(f"<h3>{inline(line[4:])}</h3>")
+            out.append("<h3>" + inline(
+                line[4:],
+                base
+            ) + "</h3>")
         elif line.startswith("!") and line.endswith("!") and line[1:-1] in attachments:
             out.append(f'<p><span class="image-wrap"><img src="{attachments[line[1:-1]]}" alt=""></span></p>')
         elif line.strip():
-            out.append(f"<p>{inline(line)}</p>")
+            out.append("<p>" + inline(
+                line,
+                base
+            ) + "</p>")
     if list_tag:
         out.append(f"</{list_tag}>")
     return "\n".join(out)
 
 
-def table_row(line):
+def table_row(
+        line,
+        base
+):
     """A table row: ||heading||heading|| or |cell|cell|."""
     cell = "th" if line.startswith("||") else "td"
     cells = line.strip("|").split("||" if cell == "th" else "|")
-    return "<tr>" + "".join(f"<{cell}>{inline(text.strip())}</{cell}>" for text in cells) + "</tr>"
+    return "<tr>" + "".join(f"<{cell}>" + inline(
+        text.strip(),
+        base
+    ) + f"</{cell}>" for text in cells) + "</tr>"
 
 
-def inline(text):
+def inline(
+        text,
+        base
+):
     text = html.escape(text, quote=False)
+    text = ISSUE_KEY.sub(
+        lambda m: f'<a href="{base}/browse/{m[0]}" class="issue-link" data-issue-key="{m[0]}">{m[0]}</a>',
+        text
+    )
     text = re.sub(r"\{\{(.+?)\}\}", r"<tt>\1</tt>", text)
     text = re.sub(r"(?<![\w*])\*(\S[^*]*?)\*(?![\w*])", r"<b>\1</b>", text)
     return re.sub(r"(?<!\w)_(\S[^_]*?)_(?!\w)", r"<em>\1</em>", text)
