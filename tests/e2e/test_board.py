@@ -279,6 +279,48 @@ class BoardTest(unittest.TestCase):
         expect(self.page.locator("#panel-content .timeline")).to_have_count(0)
         expect(self.page.locator('#panel-content h4[data-jump="history"]')).to_contain_text("History")
 
+    def test_the_activity_list_shows_others_mine_or_all(self):
+        key = next(issue["key"] for issue in self.jira.board.issues if dataset.SPRINT_ID in issue["sprints"])
+        self.jira.board.comment(
+            key,
+            dataset.ME,
+            "Answered on the call."
+        )
+        # Resynced from its panel: the background sync would take a minute.
+        self.page.locator(f'#board .card[data-key="{key}"]').click()
+        self.page.locator("#panel-sync .resync").click()
+        expect(self.page.locator("#panel-content")).to_contain_text("Answered on the call.")
+        # The local copy may be written just after the panel shows it. Polled from here: wait_for_function
+        # takes the promise fetch returns as truthy and does not wait for it.
+        deadline = time.monotonic() + WAIT_MS / 1000
+        while "Answered on the call." not in self.page.evaluate("fetch('/activity?since=0').then(r => r.text())"):
+            self.assertLess(
+                time.monotonic(),
+                deadline
+            )
+            time.sleep(0.2)
+        # Jira dates have no milliseconds: a comment within the second the page opened would fall before
+        # the visit. A minute back, and a reload reads the list at once rather than on the next poll.
+        self.page.evaluate("localStorage.setItem('sprint-board.visitSince', String(Date.now() - 60000))")
+        self.page.reload()
+        self.page.locator("#activity-btn").click()
+        panel = self.page.locator("#activity-panel")
+        expect(panel.locator("h4")).to_contain_text("Changed by others")
+        expect(panel).not_to_contain_text("Answered on the call.")
+        panel.locator('[data-scope="mine"]').click()
+        expect(panel.locator("h4")).to_contain_text("Changed by me")
+        expect(panel).to_contain_text("Answered on the call.")
+        authors = set(panel.locator(".activity-list ul .who").all_inner_texts())
+        self.assertEqual(authors, {dataset.PEOPLE[dataset.ME]})
+        panel.locator('[data-scope="all"]').click()
+        expect(panel).to_contain_text("Answered on the call.")
+        self.assertGreater(len(set(panel.locator(".activity-list ul .who").all_inner_texts())), 1)
+        # The bell counts others' changes only, whatever the list shows.
+        self.assertNotIn("by me", self.page.locator("#activity-btn").get_attribute("title"))
+        self.page.reload()
+        self.page.locator("#activity-btn").click()
+        expect(self.page.locator('#activity-panel [data-scope="all"]')).to_have_attribute("aria-pressed", "true")
+
     def test_assigning_from_the_detail_writes_to_jira(self):
         card = self.page.locator("#board .card[data-key]:has(.avatar.none)").first
         key = card.get_attribute("data-key")

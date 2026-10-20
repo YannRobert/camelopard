@@ -386,3 +386,18 @@ export function timeline(
   ].sort((a, b) => b.at - a.at
     || (a.kind === b.kind ? b.index - a.index : a.kind === "history" ? -1 : 1));
 }
+
+// The changes the activity list shows, by whom: someone else's ("others"), the user's own ("mine") or
+// everyone's ("all"). An issue with none left is left out.
+export const ACTIVITY_SCOPES = ["others", "mine", "all"];
+
+export function activityBy(
+  issues,
+  scope,
+  isMine
+) {
+  const kept = scope === "mine" ? isMine : scope === "all" ? () => true : change => !isMine(change);
+  return issues
+    .map(issue => ({ ...issue, changes: issue.changes.filter(kept) }))
+    .filter(issue => issue.changes.length);
+}

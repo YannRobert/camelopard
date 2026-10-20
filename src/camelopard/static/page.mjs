@@ -1,5 +1,7 @@
 // The page's behaviour: the board, the detail, the filters, the keys. Its pure logic lives in logic.mjs.
 import {
+  ACTIVITY_SCOPES,
+  activityBy,
   compactDuration,
   diffBlocks,
   DIFF_CONTEXT,
@@ -63,6 +65,9 @@ const NOTIFY_TEXT_LENGTH = 160;
 // coffee break, keeps the same list; coming back the next morning starts a new one.
 const LAST_SEEN_KEY = "sprint-board.lastSeen";
 const VISIT_SINCE_KEY = "sprint-board.visitSince";
+// Whose changes the activity list shows: "others" (the default), "mine" or "all". The bell counts others'
+// only, whatever the list shows: my own changes are never news.
+const ACTIVITY_SCOPE_KEY = "sprint-board.activityScope";
 const VISIT_GAP_MS = 60 * 60 * 1000;
 const ERROR_FLASH_MS = 8000;
 const INFO_FLASH_MS = 2500;
@@ -199,6 +204,7 @@ const state = {
   // The size to go back to when the detail closes, after a middle click enlarged it for one issue only.
   sizeBeforeMiddle: null,
   timeline: readPreference(TIMELINE_KEY) === "on",
+  activityScope: ACTIVITY_SCOPES.includes(readPreference(ACTIVITY_SCOPE_KEY)) ? readPreference(ACTIVITY_SCOPE_KEY) : "others",
   view: VIEWS.some(v => v.id === readPreference(VIEW_KEY)) ? readPreference(VIEW_KEY) : VIEWS[0]?.id ?? "all",
 };
 
@@ -1537,7 +1543,8 @@ $("load").addEventListener("click", () => toggleLoadPanel($("load-panel").hidden
 document.addEventListener("click", e => {
   if (!$("load-panel").hidden && !e.target.closest(".jira-load")) toggleLoadPanel(false);
   if (!$("about-panel").hidden && !e.target.closest(".about")) toggleAboutPanel(false);
-  if (!$("activity-panel").hidden && !e.target.closest(".activity")) toggleActivityPanel(false);
+  // A scope button is replaced by the re-render it triggers: detached, it is no longer inside the panel.
+  if (!$("activity-panel").hidden && e.target.isConnected && !e.target.closest(".activity")) toggleActivityPanel(false);
 });
 
 function toggleAboutPanel(open) {
@@ -2296,15 +2303,17 @@ async function loadActivity() {
 
 const isMe = user => !!user?.name && user.name.toLowerCase() === state.meta?.me?.toLowerCase();
 
-// Other people's changes only: mine, I know about.
-function othersActivity(issues) {
-  return issues
-    .map(issue => ({ ...issue, changes: issue.changes.filter(change => !isMe(change.author)) }))
-    .filter(issue => issue.changes.length);
-}
+const isMyChange = change => isMe(change.author);
+const ACTIVITY_TITLES = { others: "Changed by others", mine: "Changed by me", all: "Changed" };
+const ACTIVITY_SCOPE_LABELS = { others: "Others", mine: "Mine", all: "All" };
 
 function renderActivity() {
-  const issues = othersActivity(state.activity);
+  // The bell: other people's changes only, mine I know about.
+  const issues = activityBy(
+    state.activity,
+    "others",
+    isMyChange
+  );
   const open = !$("activity-panel").hidden;
   const count = issues.reduce((sum, issue) => sum + issue.changes.length, 0);
   // The bell counts issues, not changes: an issue moved three times and commented on twice is one thing to
@@ -2317,10 +2326,18 @@ function renderActivity() {
     (state.notify ? "" : " · desktop notifications off");
   $("activity-btn").setAttribute("aria-label", $("activity-btn").title);
   if (!open) return;
-  $("activity-panel").innerHTML = `<div class="bar"><h4>Changed by others since ${escapeHtml(formatSince(state.visitSince))}</h4>` +
-    (issues.length ? `<button type="button" id="activity-read" title="Start a new list from now">Mark all as read</button>` : "") + `</div>` +
+  const shown = activityBy(
+    state.activity,
+    state.activityScope,
+    isMyChange
+  );
+  const scopes = `<div class="activity-scope" role="group" aria-label="Whose changes">` + ACTIVITY_SCOPES.map(scope =>
+    `<button type="button" data-scope="${scope}" aria-pressed="${scope === state.activityScope}">${ACTIVITY_SCOPE_LABELS[scope]}</button>`
+  ).join("") + `</div>`;
+  $("activity-panel").innerHTML = `<div class="bar"><h4>${ACTIVITY_TITLES[state.activityScope]} since ${escapeHtml(formatSince(state.visitSince))}</h4>` +
+    scopes + (state.activity.length ? `<button type="button" id="activity-read" title="Start a new list from now">Mark all as read</button>` : "") + `</div>` +
     `<label class="notify-toggle" title="When someone else changes one of your issues (status, comment, assignment)"><input type="checkbox" id="notify"${state.notify ? " checked" : ""}> Notify me on the desktop when one of my issues changes</label>` +
-    (issues.length ? activityHtml(issues) : `<p class="muted">Nothing new.</p>`);
+    (shown.length ? activityHtml(shown) : `<p class="muted">Nothing new.</p>`);
 }
 
 // One entry per issue, its changes oldest first; shared with the stand-up.
@@ -2373,6 +2390,16 @@ $("activity-panel").addEventListener("change", e => {
   if (e.target.id === "notify") toggleNotify().finally(renderActivity);
 });
 $("activity-panel").addEventListener("click", e => {
+  const scope = e.target.closest("[data-scope]");
+  if (scope) {
+    state.activityScope = scope.dataset.scope;
+    savePreference(
+      ACTIVITY_SCOPE_KEY,
+      state.activityScope
+    );
+    renderActivity();
+    return;
+  }
   if (e.target.closest("#activity-read")) {
     state.visitSince = Date.now();
     savePreference(

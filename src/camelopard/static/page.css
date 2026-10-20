@@ -206,6 +206,11 @@ header .status { display: grid; width: 11.5rem; font-size: 0.8rem; line-height: 
 .activity-panel { width: min(52rem, 94vw); max-height: 80vh; overflow-y: auto; font-size: 0.82rem; white-space: normal; overflow-wrap: anywhere; }
 .activity-panel .bar { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 0.4rem; }
 .activity-panel .bar h4 { margin: 0; }
+/* Whose changes: a segmented control between the title and "Mark all as read", the same in all three states. */
+.activity-panel .bar .activity-scope { display: inline-flex; margin-left: auto; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+.activity-panel .bar .activity-scope button { padding: 0.1rem 0.7rem; color: var(--muted); border-radius: 0; }
+.activity-panel .bar .activity-scope button:hover { color: var(--text); }
+.activity-panel .bar .activity-scope button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
 .activity-panel .bar button { border: 0; background: none; color: var(--link); cursor: pointer; font: inherit; padding: 0; }
 /* minmax(0, 1fr): an auto track would grow to the issue button's full line (its width is a percentage)
    and push the panel sideways instead of wrapping it. */

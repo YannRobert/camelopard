@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  activityBy,
   compactDuration,
   diffBlocks,
   diffLines,
@@ -322,5 +323,32 @@ describe("timeline", () => {
 
   it("is empty with nothing on either side", () => {
     assert.deepEqual(timeline([], []), []);
+  });
+});
+
+describe("activityBy", () => {
+  const issues = [
+    { key: "A-1", changes: [{ author: "me" }, { author: "ann" }] },
+    { key: "A-2", changes: [{ author: "me" }] },
+    { key: "A-3", changes: [{ author: "bob" }] },
+  ];
+  const isMine = change => change.author === "me";
+  const keys = scope => activityBy(issues, scope, isMine).map(issue => `${issue.key}:${issue.changes.length}`);
+
+  it("keeps other people's changes by default", () => {
+    assert.deepEqual(keys("others"), ["A-1:1", "A-3:1"]);
+  });
+
+  it("keeps only the user's own", () => {
+    assert.deepEqual(keys("mine"), ["A-1:1", "A-2:1"]);
+  });
+
+  it("keeps everyone's", () => {
+    assert.deepEqual(keys("all"), ["A-1:2", "A-2:1", "A-3:1"]);
+  });
+
+  it("leaves the issues given untouched", () => {
+    activityBy(issues, "mine", isMine);
+    assert.equal(issues[0].changes.length, 2);
   });
 });
