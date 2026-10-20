@@ -743,6 +743,26 @@ aside h4 { margin: 1.4rem 0 0.5rem; font-size: 0.8rem; text-transform: uppercase
   padding: 0; border: 0; background: none; color: var(--link); font: inherit; cursor: pointer;
 }
 .history .diff-open:hover { text-decoration: underline; }
+/* Switch between comments and history apart or mixed: at the right end of their headings, apart from the
+   title, a track and a knob as switches have. */
+aside h4:has(.timeline-toggle) { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+aside h4 .timeline-toggle {
+  display: inline-flex; align-items: center; gap: 0.4rem; flex: none; padding: 0.1rem 0.2rem; border: 0; border-radius: 4px;
+  background: none; color: var(--muted); font: inherit; font-weight: 400; text-transform: none; letter-spacing: 0; cursor: pointer;
+}
+aside h4 .timeline-toggle:hover { color: var(--text); }
+aside h4 .timeline-toggle .track {
+  position: relative; width: 1.7rem; height: 0.95rem; border-radius: 999px; background: var(--border); transition: background 0.15s;
+}
+aside h4 .timeline-toggle .track::after {
+  content: ""; position: absolute; top: 0.12rem; left: 0.12rem; width: 0.71rem; height: 0.71rem; border-radius: 50%;
+  background: var(--text); transition: transform 0.15s;
+}
+aside h4 .timeline-toggle[aria-checked="true"] { color: var(--text); }
+aside h4 .timeline-toggle[aria-checked="true"] .track { background: var(--accent); }
+aside h4 .timeline-toggle[aria-checked="true"] .track::after { transform: translateX(0.75rem); background: var(--accent-fg); }
+/* Mixed, each history entry is a list of its own between comments: one line between all of them. */
+.timeline > .history > li { padding: 0.6rem 0; }
 /* A long value's change: as large as the window allows, the lines scrolling under a fixed header. */
 .diff-dialog {
   width: min(96rem, calc(100vw - 2rem)); height: calc(100vh - 2rem); max-width: none; max-height: none;

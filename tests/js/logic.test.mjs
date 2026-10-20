@@ -16,6 +16,7 @@ import {
   pairLines,
   parseSearch,
   standupSince,
+  timeline,
   toJiraDate,
 } from "../../src/camelopard/static/logic.mjs";
 
@@ -284,5 +285,42 @@ describe("pairLines", () => {
       "x\nOne new thing\n\nAnother new thing\nAnd more"
     ));
     assert.ok(rows.some(row => row.same && row.same.text === ""));
+  });
+});
+
+describe("timeline", () => {
+  const at = created => ({ created });
+  const order = entries => entries.map(entry => `${entry.kind}${entry.index}`);
+
+  it("mixes comments and changes, newest first", () => {
+    assert.deepEqual(order(timeline(
+      [at("2026-10-01T09:00:00.000+0200"), at("2026-10-03T09:00:00.000+0200")],
+      [at("2026-10-02T09:00:00.000+0200"), at("2026-10-04T09:00:00.000+0200")]
+    )), ["history1", "comment1", "history0", "comment0"]);
+  });
+
+  it("puts a change made at the same second as a comment after it", () => {
+    assert.deepEqual(order(timeline(
+      [at("2026-10-01T09:00:00.000+0200")],
+      [at("2026-10-01T09:00:00.000+0200")]
+    )), ["history0", "comment0"]);
+  });
+
+  it("keeps the later of two entries of a list on top when they share a time", () => {
+    assert.deepEqual(order(timeline(
+      [at("2026-10-01T09:00:00.000+0200"), at("2026-10-01T09:00:00.000+0200")],
+      []
+    )), ["comment1", "comment0"]);
+  });
+
+  it("compares times across time zones", () => {
+    assert.deepEqual(order(timeline(
+      [at("2026-10-01T09:30:00.000+0200")],
+      [at("2026-10-01T08:00:00.000+0000")]
+    )), ["history0", "comment0"]);
+  });
+
+  it("is empty with nothing on either side", () => {
+    assert.deepEqual(timeline([], []), []);
   });
 });

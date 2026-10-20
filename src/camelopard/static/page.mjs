@@ -14,6 +14,7 @@ import {
   parseSearch,
   standupSince,
   STATUS_TICK_MS,
+  timeline,
   toJiraDate,
 } from "./logic.mjs";
 
@@ -123,6 +124,8 @@ const PANEL_HEIGHT_KEY = "sprint-board.panelHeight";
 // side). Without a choice yet, side by side when the window leaves each half room for a sentence.
 const DIFF_LAYOUT_KEY = "sprint-board.diffLayout";
 const DIFF_SPLIT_MIN_WIDTH = 1100;
+// Comments and history in one chronological stream ("on") or in two sections, as Jira shows them.
+const TIMELINE_KEY = "sprint-board.timeline";
 // Bounds of the detail height at the bottom, as a fraction of the window.
 const PANEL_MIN_HEIGHT = 0.2;
 const PANEL_MAX_HEIGHT = 0.8;
@@ -195,6 +198,7 @@ const state = {
   maximized: false,
   // The size to go back to when the detail closes, after a middle click enlarged it for one issue only.
   sizeBeforeMiddle: null,
+  timeline: readPreference(TIMELINE_KEY) === "on",
   view: VIEWS.some(v => v.id === readPreference(VIEW_KEY)) ? readPreference(VIEW_KEY) : VIEWS[0]?.id ?? "all",
 };
 
@@ -2610,7 +2614,7 @@ function renderDetail(
     // Focusable, like the content around them: a click or Tab in one lets the arrows scroll it (bottom mode).
     `<div class="head" tabindex="-1"><h3>${escapeHtml(f?.summary ?? issue?.summary ?? key)}</h3>${factsHtml(facts)}</div>` +
     `<div class="body" tabindex="-1"><h4 data-jump="description">Description</h4>${description}${f ? linksHtml(f) + attachmentsHtml(f) : ""}</div>` +
-    `<div class="comments" tabindex="-1">${data ? commentsHtml(data) + historyHtml(data) : ""}</div>`;
+    `<div class="comments" tabindex="-1">${data ? commentsAndHistoryHtml(data) : ""}</div>`;
   panelScrollers().forEach((el, index) => { el.scrollTop = positions[index] ?? 0; });
   if (!sameTicket) $("panel-top").classList.remove("shown");
   renderJump();
@@ -2678,16 +2682,59 @@ function attachmentsHtml(f) {
   ).join("") + `</ul>`;
 }
 
-function commentsHtml(data) {
-  const raw = data.fields.comment?.comments ?? [];
+// Comments and history, in two sections or mixed in one (the button in their headings switches).
+function commentsAndHistoryHtml(data) {
+  historyDiffs.length = 0;
+  return state.timeline ? timelineHtml(data) : commentsHtml(data) + historyHtml(data);
+}
+
+// Raw for the dates, rendered by Jira for the body: the two lists share their order.
+function commentsOf(data) {
   const rendered = data.renderedFields?.comment?.comments ?? [];
-  if (!raw.length) return `<h4 data-jump="comments" data-count="0">Comments</h4><p class="muted">No comments.</p>`;
+  return (data.fields.comment?.comments ?? []).map((c, i) => ({
+    author: c.author,
+    created: c.created,
+    body: rendered[i]?.body ?? escapeHtml(c.body),
+  }));
+}
+
+// A switch, as the notification one: its label stays, the knob says the state. Pushed to the right of the
+// heading, it does not read as part of the title.
+function timelineButton() {
+  return `<button type="button" class="timeline-toggle" role="switch" aria-checked="${state.timeline}"` +
+    ` title="${state.timeline ? "Show comments and history apart" : "Mix comments and history in time order"}">` +
+    `<span class="track" aria-hidden="true"></span>Time order</button>`;
+}
+
+function commentsHtml(data) {
+  const comments = commentsOf(data);
+  if (!comments.length) return `<h4 data-jump="comments" data-count="0"><span>Comments</span>${timelineButton()}</h4><p class="muted">No comments.</p>`;
   // Newest first: it is the one people come to read.
-  const items = raw.map((c, i) => ({ author: c.author, created: c.created, body: rendered[i]?.body ?? escapeHtml(c.body) })).reverse();
-  return `<h4 data-jump="comments" data-count="${raw.length}">Comments (${raw.length})</h4>` + items.map(c =>
-    `<div class="comment"><div class="who">${person(c.author)}<span class="when">${formatDate(c.created)} · ${relative(Date.parse(c.created))}</span></div>` +
-    `<div class="rich">${sanitize(c.body)}</div></div>`
-  ).join("");
+  return `<h4 data-jump="comments" data-count="${comments.length}"><span>Comments (${comments.length})</span>${timelineButton()}</h4>` +
+    [...comments].reverse().map(commentHtml).join("");
+}
+
+function commentHtml(c) {
+  return `<div class="comment"><div class="who">${person(c.author)}<span class="when">${formatDate(c.created)} · ${relative(Date.parse(c.created))}</span></div>` +
+    `<div class="rich">${sanitize(c.body)}</div></div>`;
+}
+
+// One heading for both, which the table of contents still reaches by C and H: the history's anchor sits in
+// it, so each keeps its count and its key.
+function timelineHtml(data) {
+  const comments = commentsOf(data);
+  const histories = data.changelog?.histories ?? [];
+  const heading = `<h4 data-jump="comments" data-count="${comments.length}"><span>Comments and history` +
+    `<span data-jump="history" data-count="${histories.length}"></span></span>${timelineButton()}</h4>`;
+  const entries = timeline(
+    comments,
+    histories
+  );
+  if (!entries.length) return heading + `<p class="muted">No comments or changes.</p>`;
+  return heading + `<div class="timeline">` + entries.map(entry => entry.kind === "comment"
+    ? commentHtml(comments[entry.index])
+    : `<ol class="history">${historyEntryHtml(histories[entry.index])}</ol>`
+  ).join("") + `</div>`;
 }
 
 // History field names as Jira returns them (system id or custom field label).
@@ -2703,19 +2750,21 @@ const HISTORY_LONG_VALUE = 120;
 const HISTORY_BOT = /automat/i;
 
 function historyHtml(data) {
-  historyDiffs.length = 0;
   const histories = data.changelog?.histories;
   if (!histories) return "";
-  if (!histories.length) return `<h4 data-jump="history" data-count="0">History</h4><p class="muted">No changes.</p>`;
+  if (!histories.length) return `<h4 data-jump="history" data-count="0"><span>History</span>${timelineButton()}</h4><p class="muted">No changes.</p>`;
   // Newest first, like the comments.
-  return `<h4 data-jump="history" data-count="${histories.length}">History (${histories.length})</h4><ol class="history">` + [...histories].reverse().map(h =>
-    `<li class="${HISTORY_BOT.test(h.author?.displayName ?? "") ? "bot" : ""}">` +
+  return `<h4 data-jump="history" data-count="${histories.length}"><span>History (${histories.length})</span>${timelineButton()}</h4><ol class="history">` +
+    [...histories].reverse().map(historyEntryHtml).join("") + `</ol>`;
+}
+
+function historyEntryHtml(h) {
+  return `<li class="${HISTORY_BOT.test(h.author?.displayName ?? "") ? "bot" : ""}">` +
     `<div class="who">${person(h.author)}<span class="when" title="${escapeHtml(formatDate(h.created))}">${relative(Date.parse(h.created))}</span></div>` +
     `<ul>${h.items.map(item => historyItemHtml(
       item,
       h
-    )).join("")}</ul></li>`
-  ).join("") + `</ol>`;
+    )).join("")}</ul></li>`;
 }
 
 // The long changes of the detail shown, by the index its button carries: the dialog reads them from here.
@@ -4277,6 +4326,16 @@ $("panel-content").addEventListener("click", event => {
   if (event.target.closest(".assign")) openPicker();
   const diff = event.target.closest(".diff-open");
   if (diff) openDiff(Number(diff.dataset.diff));
+  if (event.target.closest(".timeline-toggle")) {
+    state.timeline = !state.timeline;
+    savePreference(
+      TIMELINE_KEY,
+      state.timeline ? "on" : "off"
+    );
+    rerenderDetail();
+    // The section switched in keeps the eye: the reading position jumps to its heading.
+    jumpTo("comments");
+  }
   const option = event.target.closest("#assignee-options li[data-index]");
   if (option && state.picker) choosePickerOption(state.picker.options[Number(option.dataset.index)]);
 });

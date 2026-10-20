@@ -371,3 +371,18 @@ export function pairLines(block) {
   }
   return merged;
 }
+
+// Comments and history entries in one stream, newest first: a comment followed by the changes its author
+// made right after reads in order, which Jira shows in two separate tabs. Each entry keeps its index in
+// its own list, for the page to render it as it renders that list. Jira stamps a comment and the status
+// change made with it at the same second: the change is then the newer one, the comment came with it.
+export function timeline(
+  comments,
+  histories
+) {
+  return [
+    ...comments.map((entry, index) => ({ kind: "comment", index, at: Date.parse(entry.created) })),
+    ...histories.map((entry, index) => ({ kind: "history", index, at: Date.parse(entry.created) })),
+  ].sort((a, b) => b.at - a.at
+    || (a.kind === b.kind ? b.index - a.index : a.kind === "history" ? -1 : 1));
+}

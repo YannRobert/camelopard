@@ -249,6 +249,36 @@ class BoardTest(unittest.TestCase):
         self.page.keyboard.press("j")
         self.assertEqual(self.page.evaluate("window.opened"), [f"{dataset_web()}/browse/{key}"])
 
+    def test_comments_and_history_mix_in_time_order_and_stay_so(self):
+        # An issue of the sprint with both, so that the stream mixes something.
+        key = next(
+            issue["key"] for issue in self.jira.board.issues
+            if dataset.SPRINT_ID in issue["sprints"] and issue["comments"] and issue["histories"]
+        )
+        self.page.locator(f'#board .card[data-key="{key}"]').click()
+        comments = self.page.locator('#panel-content h4[data-jump="comments"]')
+        expect(comments).to_contain_text("Comments")
+        self.page.locator('#panel-content h4[data-jump="history"] .timeline-toggle').wait_for()
+        comments.locator(".timeline-toggle").click()
+        expect(comments).to_contain_text("Comments and history")
+        expect(comments.locator(".timeline-toggle")).to_have_attribute("aria-checked", "true")
+        timeline = self.page.locator("#panel-content .timeline")
+        expect(timeline.locator(".comment").first).to_be_visible()
+        expect(timeline.locator(".history").first).to_be_visible()
+        # Every comment and every change, once each (their order is logic.mjs's, tested there).
+        counts = self.page.locator('#panel-content :is([data-jump="comments"], [data-jump="history"])').evaluate_all(
+            "els => els.reduce((sum, el) => sum + Number(el.dataset.count), 0)"
+        )
+        expect(timeline.locator(":scope > *")).to_have_count(counts)
+        # The table of contents still reaches both, each with its count.
+        expect(self.page.locator('#panel-sections [data-target="history"]')).to_be_visible()
+        self.page.reload()
+        self.page.locator(f'#board .card[data-key="{key}"]').click()
+        expect(comments).to_contain_text("Comments and history")
+        comments.locator(".timeline-toggle").click()
+        expect(self.page.locator("#panel-content .timeline")).to_have_count(0)
+        expect(self.page.locator('#panel-content h4[data-jump="history"]')).to_contain_text("History")
+
     def test_assigning_from_the_detail_writes_to_jira(self):
         card = self.page.locator("#board .card[data-key]:has(.avatar.none)").first
         key = card.get_attribute("data-key")
