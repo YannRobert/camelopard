@@ -31,8 +31,10 @@ try {
   </div>
   <div class="titles">
     <span class="crumb" id="crumb">&nbsp;</span>
-    <h1><span id="sprint-name">Sprint</span>
-      <select id="sprint" aria-label="Change sprint" hidden></select>
+    <h1><span class="sprint-switch">
+        <button type="button" class="sprint-toggle" id="sprint-toggle" aria-expanded="false" aria-controls="sprint-panel" disabled><span class="sprint-names"><span id="sprint-name">Sprint</span><span class="sprint-widths" id="sprint-widths" aria-hidden="true"></span></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg></button>
+        <span class="load-panel sprint-panel from-left" id="sprint-panel" role="group" aria-label="Sprints" hidden></span>
+      </span>
       <span id="remaining" class="remaining"></span></h1>
   </div>
   <!-- On the right, in the corner: the board's data (what changed, its freshness, the load put on Jira). -->

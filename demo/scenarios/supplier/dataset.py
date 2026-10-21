@@ -490,6 +490,9 @@ def _generate_issues():
 
 
 ISSUES = _generate_issues()
+# No sprint planned ahead: the supplier only plans the next sprint at the review.
+FUTURE_SPRINTS = ()
+FUTURE_ISSUES = ()
 _DETAILED = [issue["detailed"] for issue in ISSUES if issue.get("detailed")]
 LINKS = tuple(
     (_DETAILED[index], "blocks" if index % 3 == 0 else "relates to", _DETAILED[index + 1])

@@ -99,7 +99,7 @@ class Board:
                 spec,
                 now
             )
-            for index, spec in enumerate(self.data.ISSUES)
+            for index, spec in enumerate(self.data.ISSUES + self.data.FUTURE_ISSUES)
         ]
         self._link_issues()
 
@@ -143,7 +143,11 @@ class Board:
             "epic": self.epics[spec["epic"]] if spec["epic"] else None,
             "points": spec["points"],
             "labels": list(spec["labels"]),
-            "sprints": [self.data.PREVIOUS_SPRINT_ID, self.data.SPRINT_ID] if spec.get("carried") else [self.data.SPRINT_ID],
+            "sprints": (
+                [spec["sprint"]] if spec.get("sprint")
+                else [self.data.PREVIOUS_SPRINT_ID, self.data.SPRINT_ID] if spec.get("carried")
+                else [self.data.SPRINT_ID]
+            ),
             "created": created,
             "updated": created,
             "description": self.data.DESCRIPTIONS.get(detailed) or self.data.default_description(spec),
@@ -499,7 +503,11 @@ class Board:
         with self._lock:
             others = [login for login in self.data.PEOPLE if login != self.data.ME]
             developers = [login for login in self.data.DEVELOPERS if login != self.data.ME]
-            open_issues = [issue for issue in self.issues if issue["status"] != self.data.DONE_STATUS]
+            # Colleagues work on the active sprint: the planned ones stay as planned.
+            open_issues = [
+                issue for issue in self.issues
+                if issue["status"] != self.data.DONE_STATUS and self.data.SPRINT_ID in issue["sprints"]
+            ]
             action = rng.choices(("move", "comment", "assign"), weights=(5, 4, 2))[0]
             if action == "assign":
                 unassigned = [issue for issue in open_issues if issue["assignee"] is None]
@@ -542,7 +550,12 @@ class Board:
         """rest/greenhopper/1.0/xboard/work/allData.json: the board in one call."""
         with self._lock:
             now = datetime.now().astimezone()
-            issues = [issue for issue in self.issues if quick_filter is None or self._matches(issue, quick_filter)]
+            # The board of the active sprints: the planned ones are only in the backlog.
+            query = next((f["query"] for f in self.data.QUICK_FILTERS if str(f["id"]) == str(quick_filter)), "")
+            issues = [
+                issue for issue in self.issues
+                if self.data.SPRINT_ID in issue["sprints"] and (quick_filter is None or self._matches(issue, query))
+            ]
             return {
                 "rapidViewId": self.data.BOARD_ID,
                 "columnsData": {
@@ -599,12 +612,15 @@ class Board:
             "quickFilterConfig": {"quickFilters": [dict(f) for f in self.data.QUICK_FILTERS]},
         }
 
-    def active_sprints(self):
-        return {
-            "maxResults": 50,
-            "startAt": 0,
-            "isLast": True,
-            "values": [{
+    def sprints(self, state):
+        """rest/agile/1.0/board/<id>/sprint?state=active or future."""
+        if state == "future":
+            values = [
+                {"id": sprint_id, "state": "future", "name": name, "originBoardId": self.data.BOARD_ID, **dates}
+                for sprint_id, name, dates in self._future_sprints()
+            ]
+        else:
+            values = [{
                 "id": self.data.SPRINT_ID,
                 "state": "active",
                 "name": self.data.SPRINT_NAME,
@@ -612,27 +628,60 @@ class Board:
                 "endDate": self.sprint_end.isoformat(timespec="milliseconds"),
                 "originBoardId": self.data.BOARD_ID,
                 "goal": self.data.SPRINT_GOAL,
-            }],
+            }]
+        return {
+            "maxResults": 50,
+            "startAt": 0,
+            "isLast": True,
+            "values": values,
         }
+
+    def _future_sprints(self):
+        """(id, name, dates) of the planned sprints: only the next one has its dates set."""
+        for index, (sprint_id, name) in enumerate(self.data.FUTURE_SPRINTS):
+            dates = {}
+            if index == 0:
+                dates = {
+                    "startDate": self.sprint_end.isoformat(timespec="milliseconds"),
+                    "endDate": (
+                        self.sprint_end + timedelta(days=self.data.SPRINT_LENGTH_DAYS)
+                    ).isoformat(timespec="milliseconds"),
+                }
+            yield sprint_id, name, dates
 
     def sprint_issues(
             self,
             sprint_id,
             fields,
+            jql,
             start,
             size
     ):
-        """rest/agile/1.0/board/<id>/sprint/<id>/issue: one page of the sprint's issues."""
+        """rest/agile/1.0/board/<id>/sprint/<id>/issue: one page of the sprint's issues, in rank order,
+        narrowed by the JQL of a quick filter."""
         with self._lock:
-            issues = [issue for issue in self.issues if sprint_id in issue["sprints"]]
+            issues = [
+                issue for issue in self.issues
+                if sprint_id in issue["sprints"] and (not jql or self._matches(issue, jql))
+            ]
+            page = []
+            for issue in issues[start:start + size]:
+                answer = self.issue_json(issue, fields, ())
+                # The agile API adds the epic to the fields, which the plain issue API leaves out.
+                if not fields or "epic" in fields:
+                    epic = issue["epic"]
+                    answer["fields"]["epic"] = epic and {
+                        "id": epic["id"],
+                        "key": epic["key"],
+                        "name": epic["name"],
+                        "color": {"key": epic["color"]},
+                    }
+                page.append(answer)
             return {
                 "startAt": start,
                 "maxResults": size,
                 "total": len(issues),
-                "issues": [
-                    self.issue_json(issue, fields, ())
-                    for issue in issues[start:start + size]
-                ],
+                "issues": page,
             }
 
     def search(
@@ -860,10 +909,8 @@ class Board:
     def _matches(
             self,
             issue,
-            quick_filter
+            query
     ):
-        query = next((f["query"] for f in self.data.QUICK_FILTERS if str(f["id"]) == str(quick_filter)), None)
-        query = query or ""
         person = PERSON_FILTER.match(query)
         label = LABEL_FILTER.match(query)
         issue_type = TYPE_FILTER.match(query)
@@ -902,15 +949,23 @@ class Board:
 
     def _sprint_string(self, sprint_id):
         # Jira Server serialises the sprint field as a Java object's toString(), which the page parses.
+        future = {sprint: (name, dates) for sprint, name, dates in self._future_sprints()}
         if sprint_id == self.data.SPRINT_ID:
             name, state, start, end = self.data.SPRINT_NAME, "ACTIVE", self.sprint_start, self.sprint_end
+        elif sprint_id in future:
+            name, dates = future[sprint_id]
+            state = "FUTURE"
+            start = end = None
+            if dates:
+                start, end = self.sprint_end, self.sprint_end + timedelta(days=self.data.SPRINT_LENGTH_DAYS)
         else:
             length = timedelta(days=self.data.SPRINT_LENGTH_DAYS)
             name, state, start, end = self.data.PREVIOUS_SPRINT_NAME, "CLOSED", self.sprint_start - length, self.sprint_start
         return (
             f"com.atlassian.greenhopper.service.sprint.Sprint@{sprint_id:x}5e1f[id={sprint_id},"
-            f"rapidViewId={self.data.BOARD_ID},state={state},name={name},startDate={start.isoformat()},"
-            f"endDate={end.isoformat()},completeDate=<null>,sequence={sprint_id},goal=]"
+            f"rapidViewId={self.data.BOARD_ID},state={state},name={name},"
+            f"startDate={start.isoformat() if start else '<null>'},"
+            f"endDate={end.isoformat() if end else '<null>'},completeDate=<null>,sequence={sprint_id},goal=]"
         )
 
     def _attachment_urls(self, issue):

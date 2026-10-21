@@ -307,10 +307,12 @@ const ISSUE_LINK_TITLE = "Open here · Ctrl + click: open in Jira";
 // ---------- Loading ----------
 
 async function ensureMeta() {
-  if (state.meta && Date.now() - state.meta.at < META_TTL_MS) return;
-  const [model, me] = await Promise.all([
+  // Settings saved before planned sprints were read lack them: asked again rather than waiting for the TTL.
+  if (state.meta?.planned && Date.now() - state.meta.at < META_TTL_MS) return;
+  const [model, me, future] = await Promise.all([
     jira(`rest/greenhopper/1.0/rapidviewconfig/editmodel.json?rapidViewId=${CONFIG.boardId}`),
     jira("rest/api/2/myself"),
+    jira(`rest/agile/1.0/board/${CONFIG.boardId}/sprint?state=future`),
   ]);
   state.meta = {
     at: Date.now(),
@@ -319,8 +321,15 @@ async function ensureMeta() {
     meName: me.displayName,
     meAvatar: me.avatarUrls?.["48x48"] ?? null,
     quickFilters: (model.quickFilterConfig?.quickFilters ?? []).map(f => ({ id: f.id, name: f.name, query: f.query, description: f.description })),
+    // Sprints are planned far less often than issues move: they are asked along with the board's settings.
+    planned: future.values.map(s => ({ id: s.id, name: s.name, start: s.startDate ?? null, end: s.endDate ?? null, goal: s.goal, planned: true })),
   };
 }
+
+// A sprint started since the settings were read is active: the active board has it, then.
+const plannedSprint = id => !state.boards[state.defaultSprint]?.sprints.some(s => s.id === id)
+  ? state.meta?.planned?.find(s => s.id === id)
+  : undefined;
 
 // A quick filter on the assignee ("= X", "not in (…)", "is EMPTY"), the labels or the issue type is
 // evaluated in the page, as a predicate (issue, board); any other JQL is evaluated by Jira, which returns
@@ -359,6 +368,7 @@ function clientPredicate(filter) {
 }
 
 async function fetchBoard(sprintId) {
+  if (plannedSprint(sprintId)) return fetchPlannedBoard(sprintId);
   const [raw, local, filterKeys] = await Promise.all([
     jira(`${ALL_DATA}&activeSprints=${sprintId}`),
     readLocalFields(),
@@ -408,6 +418,15 @@ async function fetchFilterKeys(
   sprintId,
   filters
 ) {
+  if (plannedSprint(sprintId)) {
+    // allData.json only knows the active sprints: the agile API evaluates the filter's JQL in the sprint.
+    const pages = await Promise.all(filters.map(f => sprintIssues(
+      sprintId,
+      "summary",
+      f.query
+    )));
+    return Object.fromEntries(filters.map((f, i) => [f.id, pages[i].map(issue => issue.key)]));
+  }
   const answers = await Promise.all(filters.map(f => jira(`${ALL_DATA}&activeSprints=${sprintId}&activeQuickFilters=${f.id}`)));
   return Object.fromEntries(filters.map((f, i) => [f.id, answers[i].issuesData.issues.map(issue => issue.key)]));
 }
@@ -443,15 +462,85 @@ function loadMissingFilterKeys() {
 async function fetchLabels(sprintId) {
   const labels = new Map();
   const reporters = new Map();
-  for (let startAt = 0; ; startAt += AGILE_PAGE_SIZE) {
-    const page = await jira(`rest/agile/1.0/board/${CONFIG.boardId}/sprint/${sprintId}/issue?fields=labels,reporter&maxResults=${AGILE_PAGE_SIZE}&startAt=${startAt}`);
-    for (const issue of page.issues) {
-      labels.set(issue.key, issue.fields.labels ?? []);
-      const reporter = issue.fields.reporter;
-      reporters.set(issue.key, reporter && { login: reporter.name, name: reporter.displayName, avatar: reporter.avatarUrls?.["48x48"] });
-    }
-    if (!page.issues.length || startAt + page.issues.length >= page.total) return { labels, reporters };
+  for (const issue of await sprintIssues(
+    sprintId,
+    "labels,reporter"
+  )) {
+    labels.set(issue.key, issue.fields.labels ?? []);
+    reporters.set(issue.key, personOf(issue.fields.reporter));
   }
+  return { labels, reporters };
+}
+
+const personOf = user => user && { login: user.name, name: user.displayName, avatar: user.avatarUrls?.["48x48"] };
+
+// Every issue of a sprint, in rank order, through the agile API's pages of 50; narrowed by a JQL if given.
+async function sprintIssues(
+  sprintId,
+  fields,
+  jql = ""
+) {
+  const issues = [];
+  const filter = jql ? `&jql=${encodeURIComponent(jql)}` : "";
+  for (let startAt = 0; ; startAt += AGILE_PAGE_SIZE) {
+    const page = await jira(`rest/agile/1.0/board/${CONFIG.boardId}/sprint/${sprintId}/issue?fields=${fields}${filter}&maxResults=${AGILE_PAGE_SIZE}&startAt=${startAt}`);
+    issues.push(...page.issues);
+    if (!page.issues.length || startAt + page.issues.length >= page.total) return issues;
+  }
+}
+
+// A planned sprint is on no board of Jira's, only in the backlog: allData.json does not have it. Its issues
+// come from the agile API, laid out in the columns of the active board, whose settings they share.
+async function fetchPlannedBoard(sprintId) {
+  const active = state.boards[state.defaultSprint] ?? await fetchBoard(state.defaultSprint);
+  state.boards[state.defaultSprint] = active;
+  const points = CONFIG.fields?.storyPoints;
+  const [issues, filterKeys] = await Promise.all([
+    sprintIssues(
+      sprintId,
+      ["summary", "issuetype", "priority", "status", "assignee", "reporter", "labels", "epic", points].filter(Boolean).join(",")
+    ),
+    fetchFilterKeys(
+      sprintId,
+      state.meta.quickFilters.filter(f => state.quick.has(f.id) && !clientPredicate(f))
+    ),
+  ]);
+  const board = {
+    ...active,
+    at: Date.now(),
+    sprintId,
+    types: { ...active.types },
+    priorities: { ...active.priorities },
+    statuses: { ...active.statuses },
+    epics: { ...active.epics },
+    filterKeys,
+  };
+  board.issues = issues.map(({ key, fields: f }) => {
+    const assignee = personOf(f.assignee);
+    const reporter = personOf(f.reporter);
+    board.types[f.issuetype.id] ??= { name: f.issuetype.name, url: f.issuetype.iconUrl };
+    if (f.priority) board.priorities[f.priority.id] ??= { name: f.priority.name, url: f.priority.iconUrl };
+    board.statuses[f.status.id] ??= { name: f.status.name, category: f.status.statusCategory?.key };
+    if (f.epic) board.epics[f.epic.id] ??= { key: f.epic.key, text: f.epic.name, color: f.epic.color?.key };
+    return {
+      key,
+      summary: f.summary,
+      typeId: f.issuetype.id,
+      priorityId: f.priority?.id ?? null,
+      statusId: f.status.id,
+      done: f.status.statusCategory?.key === "done",
+      assignee: assignee?.login ?? null,
+      assigneeName: assignee?.name ?? null,
+      avatar: assignee?.avatar ?? null,
+      epicId: f.epic?.id ?? null,
+      points: points ? f[points] ?? null : null,
+      labels: f.labels ?? [],
+      reporter: reporter?.login ?? null,
+      reporterName: reporter?.name ?? null,
+      reporterAvatar: reporter?.avatar ?? null,
+    };
+  });
+  return board;
 }
 
 // Sprint labels, from most to least frequent. "front" and "FRONT" are the same label typed twice: they
@@ -538,7 +627,7 @@ async function doRefresh() {
     state.boards[sprintId] = board;
     // A new sprint has started: switch to it, unless the URL explicitly asks for another one.
     const latest = latestSprint(board.sprints);
-    const activeIds = new Set(board.sprints.map(s => s.id));
+    const activeIds = new Set([...board.sprints, ...state.meta.planned ?? []].map(s => s.id));
     for (const id of Object.keys(state.boards)) if (!activeIds.has(Number(id))) delete state.boards[id];
     const followDefault = !state.sprintId || state.sprintId === state.defaultSprint;
     state.defaultSprint = latest;
@@ -668,7 +757,9 @@ function renderHeader() {
   const board = currentBoard();
   $("crumb").textContent = state.meta?.boardName ?? "";
   document.title = state.meta?.boardName ? `${sprintOf(board)?.name ?? "Sprint"} · Camelopard` : "Camelopard";
-  $("open-jira").href = `${CONFIG.jiraWeb}/secure/RapidBoard.jspa?rapidView=${CONFIG.boardId}` + (board ? `&sprint=${board.sprintId}` : "");
+  // Jira shows a planned sprint only in its backlog.
+  $("open-jira").href = `${CONFIG.jiraWeb}/secure/RapidBoard.jspa?rapidView=${CONFIG.boardId}`
+    + (board && plannedSprint(board.sprintId) ? "&view=planning" : board ? `&sprint=${board.sprintId}` : "");
   if (!board) return;
   const sprint = sprintOf(board);
   $("sprint-name").textContent = sprint?.name ?? "Sprint";
@@ -677,17 +768,49 @@ function renderHeader() {
     sprint?.name,
     sprint?.goal
   ].filter(Boolean).join("\n");
-  const select = $("sprint");
-  select.hidden = board.sprints.length < 2;
-  select.innerHTML = `<option value="" disabled>Change sprint</option>` + board.sprints
-    .map(s => `<option value="${s.id}"${s.id === board.sprintId ? " selected" : ""}>${escapeHtml(s.name)}${state.boards[s.id] ? "" : " …"}</option>`)
-    .join("");
+  const planned = state.meta?.planned ?? [];
+  const toggle = $("sprint-toggle");
+  toggle.disabled = board.sprints.length + planned.length < 2;
+  toggle.title = toggle.disabled ? $("sprint-name").title : "Change sprint";
+  // Every name the button can show takes the same cell, unseen: the widest sets its width, and the
+  // timing beside it stays put from "Sprint 9" to "Sprint 10".
+  $("sprint-widths").innerHTML = [...board.sprints, ...planned].map(s => `<span>${escapeHtml(s.name)}</span>`).join("");
+  const row = s => `<button type="button" class="sprint-row" data-sprint="${s.id}"${s.id === board.sprintId ? ' aria-current="true"' : ""}>`
+    + `<span class="name">${escapeHtml(s.name)}</span><span class="when">${escapeHtml(sprintTiming(s))}</span></button>`;
+  const group = (title, sprints) => sprints.length ? `<h4>${title}</h4>${sprints.map(row).join("")}` : "";
+  $("sprint-panel").innerHTML = group("Active", board.sprints) + group("Planned", planned);
   const remaining = $("remaining");
-  remaining.classList.toggle("over", sprint?.days === 0);
-  remaining.textContent = sprint ? (sprint.days > 0 ? `⏱ ${sprint.days} day${sprint.days > 1 ? "s" : ""} left` : `⏱ past due (${sprint.end?.slice(0, 10)})`) : "";
+  remaining.classList.toggle("over", !sprint?.planned && sprint?.days === 0);
+  remaining.textContent = !sprint ? "" : sprint.planned ? `Planned · ${sprintTiming(sprint)}` : `⏱ ${sprintTiming(sprint)}`;
 }
 
-const sprintOf = board => board?.sprints.find(s => s.id === board.sprintId);
+function sprintTiming(sprint) {
+  if (sprint.planned) return sprint.start ? `starts ${sprint.start.slice(0, 10)}` : "not scheduled";
+  return sprint.days > 0 ? `${sprint.days} day${sprint.days > 1 ? "s" : ""} left` : `past due (${sprint.end?.slice(0, 10)})`;
+}
+
+function toggleSprintPanel(open) {
+  $("sprint-panel").hidden = !open;
+  $("sprint-toggle").setAttribute("aria-expanded", String(open));
+  if (open) ($("sprint-panel").querySelector('[aria-current="true"]') ?? $("sprint-panel").querySelector("button"))?.focus();
+}
+
+function selectSprint(id) {
+  toggleSprintPanel(false);
+  $("sprint-toggle").focus();
+  if (id === currentSprintId()) return;
+  state.sprintId = id;
+  state.picked.clear();
+  // The round of people belongs to the sprint left behind.
+  state.standup = null;
+  writeUrl();
+  closeDetail();
+  render();
+  if (!currentBoard() || age() >= STALE_ON_FOCUS_MS) sharedRefresh({ olderThan: STALE_ON_FOCUS_MS });
+  else scheduleAutoRefresh();
+}
+
+const sprintOf = board => board?.sprints.find(s => s.id === board.sprintId) ?? plannedSprint(board?.sprintId);
 
 // The board's quick filters by their Jira id; "@login" for someone on the board the board's filters do not
 // name: a filter on the assignee the page makes up and evaluates itself, never sent to Jira.
@@ -3269,6 +3392,7 @@ document.addEventListener("click", e => {
     return;
   }
   if (!$("criteria-panel").hidden && !e.target.closest("#criteria-panel")) toggleCriteriaPanel(false);
+  if (!$("sprint-panel").hidden && !e.target.closest(".sprint-switch")) toggleSprintPanel(false);
   if (e.target.closest("#clear-filters")) {
     clearFilters();
     return;
@@ -4239,6 +4363,11 @@ document.addEventListener("keydown", e => {
     $("panel-content").querySelector(".assign")?.focus({ preventScroll: true });
     return;
   }
+  if (e.key === "Escape" && !$("sprint-panel").hidden) {
+    toggleSprintPanel(false);
+    $("sprint-toggle").focus();
+    return;
+  }
   if (e.key === "Escape" && !$("criteria-panel").hidden) {
     toggleCriteriaPanel(false);
     $("criteria-toggle").focus();
@@ -4380,16 +4509,18 @@ document.addEventListener("change", e => {
   );
 });
 
-$("sprint").addEventListener("change", e => {
-  state.sprintId = Number(e.target.value);
-  state.picked.clear();
-  // The round of people belongs to the sprint left behind.
-  state.standup = null;
-  writeUrl();
-  closeDetail();
-  render();
-  if (!currentBoard() || age() >= STALE_ON_FOCUS_MS) sharedRefresh({ olderThan: STALE_ON_FOCUS_MS });
-  else scheduleAutoRefresh();
+$("sprint-toggle").addEventListener("click", () => toggleSprintPanel($("sprint-panel").hidden));
+$("sprint-panel").addEventListener("click", e => {
+  const row = e.target.closest("[data-sprint]");
+  if (row) selectSprint(Number(row.dataset.sprint));
+});
+// A list to go through with the arrows, as the select it replaces.
+$("sprint-panel").addEventListener("keydown", e => {
+  if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+  e.preventDefault();
+  const rows = [...$("sprint-panel").querySelectorAll("[data-sprint]")];
+  const at = rows.indexOf(document.activeElement);
+  rows[(at + (e.key === "ArrowDown" ? 1 : rows.length - 1)) % rows.length]?.focus();
 });
 $("refresh").addEventListener("click", () => refresh());
 $("autoRefresh").addEventListener("change", e => {

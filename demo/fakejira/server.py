@@ -72,13 +72,14 @@ class FakeJiraHandler(BaseHTTPRequestHandler):
             elif path == "/rest/api/2/user/assignable/search":
                 self.send_json(200, board.assignable(first(query, "username") or ""))
             elif ACTIVE_SPRINTS_PATH.match(path):
-                self.send_json(200, board.active_sprints())
+                self.send_json(200, board.sprints(first(query, "state")))
             elif SPRINT_ISSUES_PATH.match(path):
                 self.send_json(
                     200,
                     board.sprint_issues(
                         int(SPRINT_ISSUES_PATH.match(path).group(1)),
                         field_list(query),
+                        first(query, "jql") or "",
                         int(first(query, "startAt") or 0),
                         int(first(query, "maxResults") or DEFAULT_PAGE_SIZE)
                     )

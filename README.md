@@ -45,6 +45,12 @@ criteria narrow: a column merging several statuses ("New", "Grooming"…) can th
 The button counts the values picked, the address keeps them, and the clear button beside the search clears
 them too. The reporter comes from the local copy: no Jira request.
 
+**Planned sprints.** The sprint list also offers the sprints planned after the active ones, which Jira only
+shows in its backlog: their issues are laid out in the board's columns, can be ranked, assigned and moved
+like any other, so picking up the next sprint's work early is visible. They are read on demand (one request
+per page of 50 issues, at each refresh while shown), the list of planned sprints along with the board's
+settings; the local copy keeps following the active sprints only.
+
 **Following a link to an issue.** In the detail, a link to an issue (in its description, its comments,
 its epic or its links) opens that issue in the panel rather than in a Jira tab;
 Ctrl + click (Cmd + click on a Mac) still opens it in Jira. The address names the open issue

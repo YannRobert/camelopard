@@ -127,6 +127,19 @@ class DemoJiraTest(unittest.TestCase):
         board = self.get(f"rest/greenhopper/1.0/xboard/work/allData.json?rapidViewId=1&activeQuickFilters={bruno}")
         self.assertEqual({issue["assignee"] for issue in board["issuesData"]["issues"]}, {"bruno"})
 
+    def test_planned_sprints_are_off_the_board_but_in_the_agile_api(self):
+        planned = self.get(f"rest/agile/1.0/board/{dataset.BOARD_ID}/sprint?state=future")["values"]
+        self.assertEqual([sprint["id"] for sprint in planned], [sprint for sprint, _ in dataset.FUTURE_SPRINTS])
+        self.assertNotIn("startDate", planned[1])
+        board = set(self.board_keys())
+        page = self.get(f"rest/agile/1.0/board/1/sprint/{planned[0]['id']}/issue?fields=epic,status&maxResults=50&startAt=0")
+        keys = {issue["key"] for issue in page["issues"]}
+        self.assertTrue(keys)
+        self.assertFalse(keys & board)
+        self.assertTrue(any(issue["fields"]["epic"] for issue in page["issues"]))
+        bugs = self.get(f"rest/agile/1.0/board/1/sprint/{planned[0]['id']}/issue?fields=issuetype&jql=issuetype%20%3D%20Bug")
+        self.assertEqual({issue["fields"]["issuetype"]["name"] for issue in bugs["issues"]}, {"Bug"})
+
     def test_labels_page_and_people(self):
         page = self.get(f"rest/agile/1.0/board/1/sprint/{dataset.SPRINT_ID}/issue?fields=labels&maxResults=50&startAt=0")
         self.assertEqual(page["total"], len(dataset.ISSUES))

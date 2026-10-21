@@ -194,6 +194,25 @@ ISSUES = (
          assignee="alice", epic="Accessibility", points=2, labels=["frontend", "a11y"], freshness="older"),
 )
 
+# The sprints planned after this one, (id, name), in order: the first has its dates set, the next not yet,
+# as a team plans in Jira.
+FUTURE_SPRINTS = ((24, "Folio Sprint 24"), (25, "Folio Sprint 25"))
+# Their issues, in rank order: none started, but nothing stops someone from picking one up early.
+FUTURE_ISSUES = (
+    dict(summary="Wish list shared by link", type="Story", priority="Medium", status="1", assignee=None,
+         epic="Mobile app", points=5, labels=["mobile", "backend"], freshness="older", sprint=24),
+    dict(summary="Refund to the original card in one click", type="Story", priority="High", status="1",
+         assignee="bruno", epic="Payments v2", points=8, labels=["backend"], freshness="older", sprint=24),
+    dict(summary="Search suggestions flicker while typing", type="Bug", priority="Medium", status="1",
+         assignee=None, epic="Search relevance", points=2, labels=["frontend"], freshness="older", sprint=24),
+    dict(summary="Contrast of disabled buttons", type="Bug", priority="Low", status="1", assignee=None,
+         epic="Accessibility", points=1, labels=["frontend", "a11y"], freshness="older", sprint=24),
+    dict(summary="Drop the old payment gateway SDK", type="Task", priority="Medium", status="1",
+         assignee="farid", epic=None, points=3, labels=["tech-debt", "backend"], freshness="older", sprint=25),
+    dict(summary="Gift cards at checkout", type="Story", priority="Medium", status="1", assignee=None,
+         epic="Checkout revamp", points=None, labels=["frontend", "backend"], freshness="older", sprint=25),
+)
+
 # Descriptions in Jira's wiki markup (a small subset: the fake Jira renders it). Issues without one get a
 # description built from their type (default_description).
 DESCRIPTIONS = {

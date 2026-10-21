@@ -188,6 +188,22 @@ class BoardTest(unittest.TestCase):
         expect(self.cards()).to_have_count(total)
         expect(self.page.locator("#criteria-count")).to_have_text("")
 
+    def test_a_planned_sprint_opens_from_the_sprint_list(self):
+        sprint_id, name = dataset.FUTURE_SPRINTS[0]
+        planned = [issue["key"] for issue in self.jira.board.issues if sprint_id in issue["sprints"]]
+        self.page.locator("#sprint-toggle").click()
+        expect(self.page.locator("#sprint-panel h4")).to_have_text(["Active", "Planned"])
+        self.page.locator(f'#sprint-panel [data-sprint="{sprint_id}"]').click()
+        expect(self.page.locator("#sprint-panel")).to_be_hidden()
+        expect(self.page.locator("#sprint-name")).to_have_text(name)
+        expect(self.page.locator("#remaining")).to_contain_text("Planned")
+        expect(self.cards()).to_have_count(len(planned))
+        self.assertIn(f"sprint={sprint_id}", self.page.url)
+        # Reloaded, the address opens it again.
+        self.page.reload()
+        expect(self.page.locator("#sprint-name")).to_have_text(name)
+        expect(self.cards()).to_have_count(len(planned))
+
     def test_people_menu_adds_who_the_board_has_no_filter_on(self):
         self.page.locator("#people-filter").click()
         newcomer = self.page.locator("#people-menu li.apart")
