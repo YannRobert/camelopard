@@ -3,6 +3,7 @@ import {
   ACTIVITY_SCOPES,
   activityBy,
   compactDuration,
+  criterionValues,
   diffBlocks,
   DIFF_CONTEXT,
   diffLines,
@@ -12,6 +13,7 @@ import {
   formatSize,
   issueKeyOf,
   latestSprint,
+  matchesCriteria,
   normalize,
   pairLines,
   parseSearch,
@@ -143,6 +145,19 @@ const VIEWS = CONFIG.views?.length
   ? [...CONFIG.views.map((v, index) => ({ id: String(index), label: v.label, from: v.from })), { id: "all", label: "All" }]
     .map((v, index) => ({ ...v, key: String(index + 1) }))
   : [];
+// The criteria of the filters panel, after Jira's basic search (assignee and labels have their buttons):
+// what an issue holds for each, how a value reads, and its parameter in the address. Columns often merge
+// several statuses: the status criterion tells apart what a column shows together.
+const CRITERIA = [
+  { id: "status", label: "Status", param: "st", valueOf: issue => issue.statusId, nameOf: (board, value) => board.statuses[value]?.name ?? value, pillOf: (board, value) => board.statuses[value]?.category ?? "" },
+  { id: "reporter", label: "Reporter", param: "rp", valueOf: issue => issue.reporter, nameOf: (board, value) => value ? reporterOf(board, value).reporterName ?? value : "Nobody", iconOf: (board, value) => value ? avatar(value, reporterOf(board, value).reporterName, reporterOf(board, value).reporterAvatar) : "" },
+  { id: "type", label: "Type", param: "ty", valueOf: issue => issue.typeId, nameOf: (board, value) => board.types[value]?.name ?? value, iconOf: (board, value) => icon(board.types[value]) },
+  { id: "priority", label: "Priority", param: "pr", valueOf: issue => issue.priorityId, nameOf: (board, value) => board.priorities[value]?.name ?? (value || "None"), iconOf: (board, value) => icon(board.priorities[value]) },
+  { id: "epic", label: "Epic", param: "ep", valueOf: issue => issue.epicId, nameOf: (board, value) => value ? board.epics[value]?.text ?? value : "No epic", iconOf: (board, value) => board.epics[value] ? `<span class="swatch" style="--epic:${EPIC_COLORS[board.epics[value].color] ?? "#c1c7d0"}"></span>` : "" },
+];
+// Values listed before a criterion folds the rest behind "Show N more".
+const CRITERION_SHOWN = 8;
+const CRITERION_VALUE = Object.fromEntries(CRITERIA.map(c => [c.id, c.valueOf]));
 const ASSIGNEE_IS_ME = /^\s*assignee\s*(?:=\s*currentUser\(\)|in\s*\(\s*currentUser\(\)\s*\))\s*$/i;
 const ASSIGNEE_IS = /^\s*assignee\s*=\s*(?:"([^"]+)"|([\w.@-]+))\s*$/i;
 const ASSIGNEE_NOT_IN = /^\s*assignee\s+not\s+in\s*\(([^)]*)\)\s*$/i;
@@ -176,6 +191,10 @@ const state = {
   // Quick filters whose issues are being asked to Jira.
   filtersLoading: new Set(),
   labelOrder: readLabelOrder(),
+  // Values picked in the filters panel, {criterion id: Set of values}.
+  criteria: Object.fromEntries(CRITERIA.map(c => [c.id, new Set((params.get(c.param) || "").split(",").filter(Boolean))])),
+  // Criteria of the filters panel unfolded past their first values.
+  criteriaExpanded: new Set(),
   labels: new Set((params.get("lb") || "").split(",").filter(Boolean).map(label => label.toLowerCase())),
   q: params.get("q") || "",
   refreshing: null,
@@ -340,9 +359,9 @@ function clientPredicate(filter) {
 }
 
 async function fetchBoard(sprintId) {
-  const [raw, localLabels, filterKeys] = await Promise.all([
+  const [raw, local, filterKeys] = await Promise.all([
     jira(`${ALL_DATA}&activeSprints=${sprintId}`),
-    readLocalLabels(),
+    readLocalFields(),
     fetchFilterKeys(
       sprintId,
       state.meta.quickFilters.filter(f => state.quick.has(f.id) && !clientPredicate(f))
@@ -355,21 +374,31 @@ async function fetchBoard(sprintId) {
   board.filterKeys = filterKeys;
   // An issue the local copy does not have yet (first start, issue just added to the sprint): Jira gives
   // the labels of the whole sprint, as before the local copy had them.
-  const labels = board.issues.every(issue => localLabels.has(issue.key)) ? localLabels : await fetchLabels(sprintId);
-  for (const issue of board.issues) issue.labels = labels.get(issue.key) ?? [];
+  const fields = board.issues.every(issue => local.labels.has(issue.key)) ? local : await fetchLabels(sprintId);
+  for (const issue of board.issues) {
+    issue.labels = fields.labels.get(issue.key) ?? [];
+    const reporter = fields.reporters.get(issue.key);
+    issue.reporter = reporter?.login ?? null;
+    issue.reporterName = reporter?.name ?? null;
+    issue.reporterAvatar = reporter?.avatar ?? null;
+  }
   return board;
 }
 
-// Labels of the issues of the local copy, which the background sync keeps up to date: no Jira request.
-async function readLocalLabels() {
+// Labels and reporters of the issues of the local copy, which the background sync keeps up to date: no
+// Jira request.
+async function readLocalFields() {
+  const none = { labels: new Map(), reporters: new Map() };
   try {
     const response = await request(
       "/labels",
       { timeout: LOCAL_TIMEOUT_MS }
     );
-    return response.ok ? new Map(Object.entries((await response.json()).labels)) : new Map();
+    if (!response.ok) return none;
+    const answer = await response.json();
+    return { labels: new Map(Object.entries(answer.labels)), reporters: new Map(Object.entries(answer.reporters ?? {})) };
   } catch (ignored) {
-    return new Map();
+    return none;
   }
 }
 
@@ -409,13 +438,19 @@ function loadMissingFilterKeys() {
   });
 }
 
-// allData.json does not carry labels: the agile API gives them for the whole sprint, in pages of 50.
+// allData.json carries neither labels nor reporters: the agile API gives them for the whole sprint, in pages
+// of 50.
 async function fetchLabels(sprintId) {
   const labels = new Map();
+  const reporters = new Map();
   for (let startAt = 0; ; startAt += AGILE_PAGE_SIZE) {
-    const page = await jira(`rest/agile/1.0/board/${CONFIG.boardId}/sprint/${sprintId}/issue?fields=labels&maxResults=${AGILE_PAGE_SIZE}&startAt=${startAt}`);
-    for (const issue of page.issues) labels.set(issue.key, issue.fields.labels ?? []);
-    if (!page.issues.length || startAt + page.issues.length >= page.total) return labels;
+    const page = await jira(`rest/agile/1.0/board/${CONFIG.boardId}/sprint/${sprintId}/issue?fields=labels,reporter&maxResults=${AGILE_PAGE_SIZE}&startAt=${startAt}`);
+    for (const issue of page.issues) {
+      labels.set(issue.key, issue.fields.labels ?? []);
+      const reporter = issue.fields.reporter;
+      reporters.set(issue.key, reporter && { login: reporter.name, name: reporter.displayName, avatar: reporter.avatarUrls?.["48x48"] });
+    }
+    if (!page.issues.length || startAt + page.issues.length >= page.total) return { labels, reporters };
   }
 }
 
@@ -1117,6 +1152,7 @@ function readLabelUsage() {
 function clearFilters() {
   state.quick.clear();
   state.labels.clear();
+  for (const values of Object.values(state.criteria)) values.clear();
   state.q = "";
   writeUrl();
   renderFilters();
@@ -1127,12 +1163,120 @@ function renderClearFilters() {
   const active = [
     ...state.quick.size ? [`${state.quick.size} quick filter(s)`] : [],
     ...state.labels.size ? [`${state.labels.size} label(s)`] : [],
+    ...criteriaCount() ? [`${criteriaCount()} value(s) in the filters panel`] : [],
     ...state.q ? [`the search "${state.q}"`] : [],
   ];
   const button = $("clear-filters");
   button.disabled = !active.length;
   button.title = active.length ? `Clear filters: ${active.join(", ")}` : "No active filter";
   button.setAttribute("aria-label", button.title);
+}
+
+// ---------- Filters panel ----------
+
+function criteriaCount() {
+  return Object.values(state.criteria).reduce((sum, values) => sum + values.size, 0);
+}
+
+// An issue the login reported: where its name and photo are found.
+function reporterOf(
+  board,
+  login
+) {
+  return board.issues.find(issue => issue.reporter === login) ?? {};
+}
+
+// The button shows how many values are picked, so a filter hidden in the closed panel is never forgotten. The
+// panel lists, for each criterion, the values found in the sprint; a picked value missing from it (shared
+// link, other sprint) stays listed at 0, so it can be removed.
+function renderCriteria() {
+  const board = currentBoard();
+  const count = criteriaCount();
+  const button = $("criteria-toggle");
+  button.classList.toggle("active", count > 0);
+  $("criteria-count").textContent = count || "";
+  button.title = count ? `Filters: ${count} value(s) picked` : "Filters: status, reporter, type, priority, epic";
+  button.setAttribute("aria-label", button.title);
+  const panel = $("criteria-panel");
+  if (panel.hidden || !board) return;
+  const focused = document.activeElement?.closest?.("#criteria-panel [data-criterion], #criteria-panel [data-criterion-more]");
+  const focusKey = focused && [focused.dataset.criterion ?? focused.dataset.criterionMore, focused.value ?? ""];
+  const shown = board.issues.filter(issue => matchesCriteria(
+    issue,
+    state.criteria,
+    CRITERION_VALUE
+  )).length;
+  panel.innerHTML = `<div class="criteria-head"><h4>Filters</h4>` +
+    `<span class="criteria-total">${count ? `${shown} of ${board.issues.length} issues` : `${board.issues.length} issues`}</span>` +
+    `<button type="button" class="link" id="criteria-clear"${count ? "" : " disabled"}>Clear all</button></div>` +
+    `<div class="criteria-body">${CRITERIA.map(c => criterionHtml(
+      board,
+      c
+    )).join("")}</div>`;
+  if (focusKey) {
+    const [id, value] = focusKey;
+    [...panel.querySelectorAll("[data-criterion], [data-criterion-more]")]
+      .find(el => (el.dataset.criterion ?? el.dataset.criterionMore) === id && (el.value ?? "") === value)?.focus();
+  }
+}
+
+// One criterion: its values in a stable order (how often the sprint has them), each counting the issues the
+// other criteria leave, as Jira's facets do: a value that would show nothing is dimmed rather than removed,
+// so the list does not move under the pointer. Past CRITERION_SHOWN values the rest fold behind a button,
+// rather than in a second scrolling box inside the panel's own.
+function criterionHtml(
+  board,
+  c
+) {
+  const picked = state.criteria[c.id];
+  const values = criterionValues(
+    board.issues,
+    c.valueOf,
+    value => c.nameOf(board, value)
+  );
+  for (const value of picked) if (!values.some(v => v.value === value)) values.push({ value, count: 0, name: c.nameOf(board, value) });
+  if (values.length < 2 && !picked.size) return "";
+  const others = { ...state.criteria, [c.id]: new Set() };
+  const counts = new Map();
+  for (const issue of board.issues) {
+    if (!matchesCriteria(issue, others, CRITERION_VALUE)) continue;
+    const value = String(c.valueOf(issue) ?? "");
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  const expanded = state.criteriaExpanded.has(c.id) || values.length <= CRITERION_SHOWN + 1;
+  const visible = expanded ? values : values.filter((v, index) => index < CRITERION_SHOWN || picked.has(v.value));
+  const name = v => c.pillOf
+    ? `<span class="status-pill ${escapeHtml(c.pillOf(board, v.value))}">${escapeHtml(v.name)}</span>`
+    : escapeHtml(v.name);
+  return `<fieldset><legend><span>${c.label}</span>` +
+    (picked.size ? `<button type="button" class="link" data-criterion-clear="${c.id}" aria-label="Clear ${c.label}">Clear</button>` : "") +
+    `</legend>` +
+    visible.map(v => {
+      const n = counts.get(v.value) ?? 0;
+      return `<label${n || picked.has(v.value) ? "" : ` class="empty"`}><input type="checkbox" data-criterion="${c.id}" value="${escapeHtml(v.value)}"${picked.has(v.value) ? " checked" : ""}>` +
+        `${c.iconOf?.(board, v.value) ?? ""}<span class="name" title="${escapeHtml(v.name)}">${name(v)}</span><span class="n">${n}</span></label>`;
+    }).join("") +
+    (values.length > visible.length
+      ? `<button type="button" class="link more" data-criterion-more="${c.id}">Show ${values.length - visible.length} more</button>`
+      : "") +
+    `</fieldset>`;
+}
+
+function toggleCriteriaPanel(open) {
+  $("criteria-panel").hidden = !open;
+  $("criteria-toggle").setAttribute("aria-expanded", String(open));
+  renderCriteria();
+  if (open) $("criteria-panel").querySelector("input")?.focus();
+}
+
+function toggleCriterion(
+  id,
+  value
+) {
+  const values = state.criteria[id];
+  if (!values.delete(value)) values.add(value);
+  writeUrl();
+  renderBoard();
 }
 
 function toggleLabel(id) {
@@ -1219,7 +1363,11 @@ function visibleIssues(board) {
   );
   const labels = [...state.labels];
   return board.issues.filter(issue =>
-    (speaker === undefined || (issue.assignee ?? null) === speaker || state.standup.touched.has(issue.key)) && active.every(p => p(issue)) && labels.every(id => (issue.labels ?? []).some(l => l.toLowerCase() === id)) && terms.every(term => matchesTerm(
+    (speaker === undefined || (issue.assignee ?? null) === speaker || state.standup.touched.has(issue.key)) && active.every(p => p(issue)) && labels.every(id => (issue.labels ?? []).some(l => l.toLowerCase() === id)) && matchesCriteria(
+      issue,
+      state.criteria,
+      CRITERION_VALUE
+    ) && terms.every(term => matchesTerm(
       issue,
       board,
       term
@@ -1307,6 +1455,7 @@ function renderBoard() {
     columns
   );
   renderClearFilters();
+  renderCriteria();
   renderStandup();
   renderBulk();
   // The count follows the view and the search, which only redraw the board, not the filter bar.
@@ -3073,6 +3222,7 @@ function writeUrl() {
   if (state.sprintId && state.sprintId !== state.defaultSprint) p.set("sprint", state.sprintId);
   if (state.quick.size) p.set("qf", [...state.quick].join(","));
   if (state.labels.size) p.set("lb", [...state.labels].join(","));
+  for (const c of CRITERIA) if (state.criteria[c.id].size) p.set(c.param, [...state.criteria[c.id]].join(","));
   if (state.q) p.set("q", state.q);
   if (state.openKey) p.set("issue", state.openKey);
   const query = p.toString();
@@ -3092,6 +3242,33 @@ document.addEventListener("click", e => {
     return;
   }
   if (state.filtersOpen && !e.target.closest("#filters-more, #people-menu")) showMoreFilters(false);
+  if (e.target.closest("#criteria-toggle")) {
+    toggleCriteriaPanel($("criteria-panel").hidden);
+    return;
+  }
+  const criterionMore = e.target.closest("[data-criterion-more]");
+  if (criterionMore) {
+    state.criteriaExpanded.add(criterionMore.dataset.criterionMore);
+    renderCriteria();
+    $("criteria-panel").querySelector(`fieldset:has([data-criterion="${criterionMore.dataset.criterionMore}"]) label:nth-of-type(${CRITERION_SHOWN + 1}) input`)?.focus();
+    return;
+  }
+  const criterionClear = e.target.closest("[data-criterion-clear]");
+  if (criterionClear) {
+    state.criteria[criterionClear.dataset.criterionClear].clear();
+    writeUrl();
+    renderBoard();
+    $("criteria-panel").querySelector(`[data-criterion="${criterionClear.dataset.criterionClear}"]`)?.focus();
+    return;
+  }
+  if (e.target.closest("#criteria-clear")) {
+    for (const values of Object.values(state.criteria)) values.clear();
+    writeUrl();
+    renderBoard();
+    $("criteria-toggle").focus();
+    return;
+  }
+  if (!$("criteria-panel").hidden && !e.target.closest("#criteria-panel")) toggleCriteriaPanel(false);
   if (e.target.closest("#clear-filters")) {
     clearFilters();
     return;
@@ -4062,6 +4239,11 @@ document.addEventListener("keydown", e => {
     $("panel-content").querySelector(".assign")?.focus({ preventScroll: true });
     return;
   }
+  if (e.key === "Escape" && !$("criteria-panel").hidden) {
+    toggleCriteriaPanel(false);
+    $("criteria-toggle").focus();
+    return;
+  }
   if (e.key === "Escape" && !$("load-panel").hidden) {
     toggleLoadPanel(false);
     $("load").focus();
@@ -4192,6 +4374,10 @@ document.addEventListener("keydown", e => {
 document.addEventListener("change", e => {
   if (e.target.id === "more-labels") state.filtersOpen = false;
   if (e.target.id === "more-labels" && e.target.value) toggleLabel(e.target.value);
+  if (e.target.dataset?.criterion) toggleCriterion(
+    e.target.dataset.criterion,
+    e.target.value
+  );
 });
 
 $("sprint").addEventListener("change", e => {

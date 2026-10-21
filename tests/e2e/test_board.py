@@ -167,6 +167,27 @@ class BoardTest(unittest.TestCase):
         self.page.locator("#people-filter").click()
         expect(self.page.locator("#people-menu li.everyone")).to_have_attribute("aria-selected", "false")
 
+    def test_the_filters_panel_narrows_by_status_and_reporter(self):
+        total = self.cards().count()
+        self.page.locator("#criteria-toggle").click()
+        status = self.page.locator('#criteria-panel input[data-criterion="status"]').first
+        status.check()
+        narrowed = self.cards().count()
+        self.assertLess(narrowed, total)
+        expect(self.page.locator("#criteria-count")).to_have_text("1")
+        self.assertIn("st=", self.page.url)
+        # A reporter adds a criterion: never more cards than with the status alone.
+        self.page.locator('#criteria-panel input[data-criterion="reporter"]').first.check()
+        self.assertLessEqual(self.cards().count(), narrowed)
+        # Clearing one criterion keeps the others.
+        self.page.locator('#criteria-panel [data-criterion-clear="reporter"]').click()
+        expect(self.cards()).to_have_count(narrowed)
+        self.page.keyboard.press("Escape")
+        expect(self.page.locator("#criteria-panel")).to_be_hidden()
+        self.page.locator("#clear-filters").click()
+        expect(self.cards()).to_have_count(total)
+        expect(self.page.locator("#criteria-count")).to_have_text("")
+
     def test_people_menu_adds_who_the_board_has_no_filter_on(self):
         self.page.locator("#people-filter").click()
         newcomer = self.page.locator("#people-menu li.apart")

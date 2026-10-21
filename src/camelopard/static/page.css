@@ -37,6 +37,8 @@
   /* Raised above the cards it covers: lighter than them in the dark theme, white in the light one. */
   --popover: #463f36;
   --popover-shadow: 0 12px 32px rgba(0, 0, 0, .6);
+  --dialog-shadow: 0 16px 48px rgba(0, 0, 0, .6);
+  --backdrop: rgba(0, 0, 0, .45);
   /* A hairline lighter than any surface: the popover's edge shows over the board without a heavy border. */
   --popover-edge: rgba(255, 255, 255, .1);
   /* On the raised surface: the board's dividers vanish in it and its secondary text falls under 4.5:1. */
@@ -74,6 +76,8 @@
   --recent: #d9860f;
   --popover: #ffffff;
   --popover-shadow: 0 12px 32px rgba(60, 40, 20, .28);
+  --dialog-shadow: 0 16px 48px rgba(60, 40, 20, .32);
+  --backdrop: rgba(43, 33, 24, .35);
   --popover-edge: rgba(60, 40, 20, .14);
   --popover-border: var(--border);
   --popover-muted: var(--muted);
@@ -123,10 +127,10 @@ header #sprint-name { white-space: nowrap; overflow: hidden; text-overflow: elli
 header select {
   font: inherit; font-size: 0.9rem; color: var(--link); background: transparent; border: 0; cursor: pointer; padding: 0.1rem 0;
 }
-header select option, .filters .more-labels option { color: var(--text); background: var(--column); }
+header select option, .filters .more-labels option { color: var(--text); background: var(--popover); }
 header select option:checked, .filters .more-labels option:checked { color: var(--accent-fg); background: var(--accent); }
 header select option:disabled, .filters .more-labels option:disabled,
-.filters .more-labels option[value=""] { color: var(--faint); background: var(--column); font-style: italic; }
+.filters .more-labels option[value=""] { color: var(--faint); background: var(--popover); font-style: italic; }
 /* margin-left: auto keeps the data in the right corner, on the first line as on the next one. */
 header .right { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 0.5rem 0.9rem; margin-left: auto; color: var(--muted); font-size: 0.85rem; }
 header .right > *, .load-btn, .refresh-controls label.auto { white-space: nowrap; }
@@ -151,7 +155,9 @@ header .status { display: grid; width: 11.5rem; font-size: 0.8rem; line-height: 
   background: var(--popover); color: var(--text); box-shadow: var(--popover-shadow);
 }
 .load-panel[hidden] { display: none; }
-.load-panel, .filters.filters-more, .people-menu {
+/* Everything that floats over the page, panels, lists, tooltips and dialogs, shares one surface: the same
+   background, edge and secondary text, whichever part of the page opened it. */
+.load-panel, .filters.filters-more, .people-menu, .tooltip, .preview, .picker ul, .move-dialog, .diff-dialog {
   --border: var(--popover-border); --muted: var(--popover-muted); --faint: var(--popover-faint);
 }
 /* Button in the left half of the window (the header wraps on a narrow one): the panel opens towards the
@@ -646,12 +652,12 @@ aside a.previewable::after { content: " 🖼"; font-size: 0.8em; opacity: 0.7; }
 .tooltip {
   position: fixed; z-index: 2000; max-width: min(28rem, calc(100vw - 16px)); padding: 0.3em 0.6em;
   border-radius: 4px; line-height: 1.35; white-space: pre-line; pointer-events: none;
-  color: var(--text); background: var(--card); border: 1px solid var(--border); box-shadow: 0 4px 14px rgba(0, 0, 0, .35);
+  color: var(--text); background: var(--popover); border: 1px solid var(--popover-edge); box-shadow: var(--popover-shadow);
 }
 .tooltip[hidden] { display: none; }
 .preview {
   position: fixed; z-index: 50; pointer-events: none; padding: 0.35rem; border-radius: 6px;
-  background: var(--card); border: 1px solid var(--border); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  background: var(--popover); border: 1px solid var(--popover-edge); box-shadow: var(--popover-shadow);
 }
 .preview[hidden] { display: none; }
 .preview img { display: block; object-fit: contain; }
@@ -687,11 +693,11 @@ aside .facts .assign.pending { opacity: 0.6; cursor: progress; }
 }
 .picker ul {
   position: absolute; z-index: 5; left: 0; right: 0; top: calc(100% + 2px); max-height: 16rem; overflow-y: auto;
-  margin: 0; padding: 0.25rem 0; list-style: none; background: var(--card); border: 1px solid var(--border);
-  border-radius: 4px; box-shadow: var(--panel-shadow);
+  margin: 0; padding: 0.25rem 0; list-style: none; background: var(--popover); border: 1px solid var(--popover-edge);
+  border-radius: 4px; box-shadow: var(--popover-shadow);
 }
 .picker li { display: flex; align-items: center; gap: 0.45rem; padding: 0.3rem 0.6rem; cursor: pointer; }
-.picker li:hover { background: var(--card-hover); }
+.picker li:hover { background: var(--chip); }
 .picker li.current .name::after { content: " ✓"; color: var(--accent); }
 .picker li .login { margin-left: auto; padding-left: 0.6rem; color: var(--faint); font-size: 0.75rem; }
 .picker li.search .name { color: var(--link); }
@@ -705,10 +711,10 @@ aside .facts .assign.pending { opacity: 0.6; cursor: progress; }
    never wider nor taller than the window. */
 .move-dialog {
   width: min(34rem, calc(100vw - 2rem)); max-height: calc(100vh - 2rem); overflow: auto; box-sizing: border-box;
-  padding: 1.3rem 1.5rem 1.2rem; border: 1px solid var(--border); border-radius: 0.8rem;
-  background: var(--column); color: var(--text); box-shadow: 0 16px 48px rgba(0, 0, 0, .45);
+  padding: 1.3rem 1.5rem 1.2rem; border: 1px solid var(--popover-edge); border-radius: 0.8rem;
+  background: var(--popover); color: var(--text); box-shadow: var(--dialog-shadow);
 }
-.move-dialog::backdrop { background: rgba(0, 0, 0, .45); }
+.move-dialog::backdrop { background: var(--backdrop); }
 .move-dialog h2 { margin: 0 0 0.3rem; font-size: 1.15rem; font-weight: 600; }
 .move-dialog .summary { margin: 0 0 1.1rem; color: var(--muted); font-size: 0.9rem; line-height: 1.35; }
 .move-dialog ol { list-style: none; margin: 0 0 1rem; padding: 0; }
@@ -784,10 +790,10 @@ aside h4 .timeline-toggle[aria-checked="true"] .track::after { transform: transl
 /* A long value's change: as large as the window allows, the lines scrolling under a fixed header. */
 .diff-dialog {
   width: min(96rem, calc(100vw - 2rem)); height: calc(100vh - 2rem); max-width: none; max-height: none;
-  box-sizing: border-box; padding: 0; border: 1px solid var(--border); border-radius: 0.8rem;
-  background: var(--column); color: var(--text); box-shadow: 0 16px 48px rgba(0, 0, 0, .45);
+  box-sizing: border-box; padding: 0; border: 1px solid var(--popover-edge); border-radius: 0.8rem;
+  background: var(--popover); color: var(--text); box-shadow: var(--dialog-shadow);
 }
-.diff-dialog::backdrop { background: rgba(0, 0, 0, .45); }
+.diff-dialog::backdrop { background: var(--backdrop); }
 .diff-dialog form { display: flex; flex-direction: column; height: 100%; }
 .diff-dialog header {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1.2rem;
@@ -837,3 +843,58 @@ aside h4 .timeline-toggle[aria-checked="true"] .track::after { transform: transl
   font: inherit; font-size: 0.8rem; cursor: pointer;
 }
 .diff .diff-unfold:hover { background: var(--card-hover); color: var(--text); }
+
+/* Filters panel: the criteria of Jira's basic search behind one button, so the toolbar stays a single line. */
+.criteria { position: relative; flex: none; }
+.icon-btn.criteria-btn { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.3rem 0.4rem; }
+.icon-btn.criteria-btn svg {
+  width: 1.2rem; height: 1.2rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round;
+}
+.icon-btn.criteria-btn.active { color: var(--accent-fg); background: var(--accent); }
+.icon-btn.criteria-btn .n { font-size: 0.75rem; font-weight: 600; }
+.icon-btn.criteria-btn .n:empty { display: none; }
+.criteria-panel {
+  width: min(42rem, calc(100vw - 2rem)); max-height: min(75vh, 46rem); overflow: auto; overscroll-behavior: contain;
+  padding: 0.75rem 0.9rem 0.85rem; font-size: 0.85rem;
+}
+.criteria-panel .criteria-head { display: flex; align-items: baseline; gap: 0.75rem; padding-bottom: 0.6rem; border-bottom: 1px solid var(--border); }
+.criteria-panel .criteria-head h4 { margin: 0; font-size: 0.95rem; }
+.criteria-panel .criteria-total { flex: 1; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* Two columns where the window allows: a board's status and reporter lists read side by side, without
+   scrolling the panel to reach the second; columns rather than a grid, so a long list leaves no hole beside it. */
+.criteria-panel .criteria-body { columns: 2 17rem; column-gap: 1.4rem; padding-top: 0.2rem; }
+.criteria-panel .link { border: 0; background: none; color: var(--accent); cursor: pointer; font: inherit; padding: 0.1rem 0.2rem; border-radius: 3px; }
+.criteria-panel .link:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 0.2em; }
+.criteria-panel .link:disabled { color: var(--faint); cursor: default; }
+.criteria-panel .link:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.criteria-panel fieldset { border: 0; margin: 0; padding: 0.85rem 0 0; min-width: 0; break-inside: avoid; }
+.criteria-panel legend {
+  /* Floated: a legend otherwise sits on the fieldset's edge and leaves a gap under it. */
+  float: left; display: flex; align-items: baseline; justify-content: space-between; width: 100%; padding: 0 0.3rem 0.25rem;
+  color: var(--muted); font-weight: 600; font-size: 0.75rem; letter-spacing: 0.04em; text-transform: uppercase;
+}
+.criteria-panel legend .link { font-size: 0.75rem; font-weight: 500; letter-spacing: 0; text-transform: none; }
+.criteria-panel legend + label { clear: both; }
+.criteria-panel label {
+  display: flex; text-align: left; align-items: center; gap: 0.5rem; min-height: 1.75rem; padding: 0.1rem 0.3rem;
+  border-radius: 4px; cursor: pointer;
+}
+.criteria-panel label:hover { background: var(--border); }
+.criteria-panel label:has(input:checked) { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.criteria-panel label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: -1px; }
+/* Nothing left to show with the other criteria: still pickable, but it reads as such. */
+.criteria-panel label.empty .name, .criteria-panel label.empty .icon, .criteria-panel label.empty .avatar, .criteria-panel label.empty .swatch { opacity: 0.45; }
+.criteria-panel .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.criteria-panel .n { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 1.6rem; text-align: right; }
+.criteria-panel .more { margin: 0.15rem 0 0 0.3rem; font-size: 0.8rem; }
+/* Inside the toolbar: its search field's sizing must not reach the checkboxes. */
+.toolbar .criteria-panel input { width: auto; flex: none; margin: 0; padding: 0; accent-color: var(--accent); }
+/* The type and priority icons and the reporters' photos of the cards, so a value reads as on the board. */
+.criteria-panel label .icon { width: 1rem; height: 1rem; }
+.criteria-panel label .avatar { width: 1.3rem; height: 1.3rem; font-size: 0.55rem; box-shadow: none; }
+.criteria-panel label .swatch { flex: none; width: 0.75rem; height: 0.75rem; margin: 0 0.125rem; border-radius: 3px; background: var(--epic); }
+.criteria-panel label .status-pill { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+/* A narrow window: the panel spans it rather than starting at the button and running off the right edge. */
+@media (max-width: 48rem) {
+  .criteria-panel.from-left { position: fixed; top: auto; left: 1rem; right: 1rem; width: auto; }
+}

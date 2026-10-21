@@ -421,3 +421,30 @@ export function issueKeyOf(
   const key = decodeURIComponent(url.pathname.slice(base.pathname.length + "browse/".length));
   return ISSUE_KEY.test(key) ? key : null;
 }
+
+// Values of one filter criterion over the issues, most frequent first, then by name: what the filters panel
+// offers, each with how many issues it would show. An issue without one (no epic, no reporter) counts under "".
+export function criterionValues(
+  issues,
+  valueOf,
+  nameOf
+) {
+  const counts = new Map();
+  for (const issue of issues) {
+    const value = String(valueOf(issue) ?? "");
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  return [...counts]
+    .map(([value, count]) => ({ value, count, name: nameOf(value) }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+}
+
+// As in Jira's basic search: the values picked for one criterion add up (OR), the criteria narrow (AND), and
+// a criterion with nothing picked lets every issue through.
+export function matchesCriteria(
+  issue,
+  picked,
+  valueOf
+) {
+  return Object.entries(picked).every(([id, values]) => !values.size || values.has(String(valueOf[id](issue) ?? "")));
+}

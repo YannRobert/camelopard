@@ -37,6 +37,14 @@ Jira when pasted into a mail or a chat). Picking a second card closes the detail
 then assigns the picked issues or moves them to a column, after a confirmation listing each one (and the
 issues no known path can move, left as is).
 
+**Filtering by status, reporter and more.** Besides the quick filters and labels, the button beside the
+stand-up's opens a panel with the criteria of Jira's basic search: status, reporter, type, priority and epic,
+each listing the values found in the sprint with how many issues the other criteria leave for them (a value
+that would show nothing is dimmed). Values of one criterion add up,
+criteria narrow: a column merging several statuses ("New", "Grooming"…) can then show only one of them.
+The button counts the values picked, the address keeps them, and the clear button beside the search clears
+them too. The reporter comes from the local copy: no Jira request.
+
 **Following a link to an issue.** In the detail, a link to an issue (in its description, its comments,
 its epic or its links) opens that issue in the panel rather than in a Jira tab;
 Ctrl + click (Cmd + click on a Mac) still opens it in Jira. The address names the open issue

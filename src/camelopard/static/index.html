@@ -79,6 +79,10 @@ try {
 <div class="toolbar">
   <span class="views" id="views" role="group" aria-label="Board view"></span>
   <button type="button" class="icon-btn standup-btn" id="standup-toggle" aria-pressed="false" title="Stand-up: each one's cards in turn, in the order the floor goes (Shift + S)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20 c0-3.6 2.7-6 6-6 s6 2.4 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14.1 c2.6 0.2 4.5 2.4 4.5 5.4"/></svg></button>
+  <div class="criteria">
+    <button type="button" class="icon-btn criteria-btn" id="criteria-toggle" aria-expanded="false" aria-controls="criteria-panel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg><span class="n" id="criteria-count"></span></button>
+    <div class="load-panel criteria-panel from-left" id="criteria-panel" role="group" aria-label="Filters" hidden></div>
+  </div>
   <div class="filters" id="filters" role="group" aria-label="Quick filters and labels"></div>
   <div class="filters filters-more" id="filters-more" role="group" aria-label="Other filters" hidden></div>
   <ul class="people-menu" id="people-menu" role="listbox" aria-label="Filter by assignee" tabindex="-1" hidden></ul>

@@ -6,6 +6,7 @@ import { describe, it } from "node:test";
 import {
   activityBy,
   compactDuration,
+  criterionValues,
   diffBlocks,
   diffLines,
   diffStats,
@@ -14,6 +15,7 @@ import {
   formatSize,
   issueKeyOf,
   latestSprint,
+  matchesCriteria,
   normalize,
   pairLines,
   parseSearch,
@@ -388,5 +390,39 @@ describe("issueKeyOf", () => {
     assert.equal(key("https://jira.example.org/browse/ABC-12"), null);
     assert.equal(key("mailto:someone@example.org"), null);
     assert.equal(key("not a url"), null);
+  });
+});
+
+describe("criterionValues", () => {
+  it("counts each value, most frequent first, then by name, the missing one under an empty value", () => {
+    const issues = [{ s: "2" }, { s: "1" }, { s: "2" }, { s: null }, { s: "3" }];
+    const names = { 1: "Grooming", 2: "New", 3: "Analysis", "": "None" };
+    assert.deepEqual(
+      criterionValues(
+        issues,
+        issue => issue.s,
+        value => names[value]
+      ).map(v => [v.value, v.count]),
+      [["2", 2], ["3", 1], ["1", 1], ["", 1]]
+    );
+  });
+});
+
+describe("matchesCriteria", () => {
+  const valueOf = { status: issue => issue.status, reporter: issue => issue.reporter };
+
+  it("lets every issue through when nothing is picked", () => {
+    assert.ok(matchesCriteria({ status: 1 }, { status: new Set(), reporter: new Set() }, valueOf));
+  });
+
+  it("adds up the values of a criterion and narrows across criteria", () => {
+    const picked = { status: new Set(["1", "2"]), reporter: new Set(["ada"]) };
+    assert.ok(matchesCriteria({ status: 2, reporter: "ada" }, picked, valueOf));
+    assert.ok(!matchesCriteria({ status: 3, reporter: "ada" }, picked, valueOf));
+    assert.ok(!matchesCriteria({ status: 1, reporter: "bob" }, picked, valueOf));
+  });
+
+  it("matches a missing value with the empty one", () => {
+    assert.ok(matchesCriteria({ status: 1, reporter: null }, { reporter: new Set([""]) }, valueOf));
   });
 });

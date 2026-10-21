@@ -128,7 +128,13 @@ def make_handler(
                 )
             elif self.path == "/labels":
                 # The page's board refresh would otherwise page through the sprint in Jira for them.
-                self.send_json(200, {"labels": mirror.labels()})
+                self.send_json(
+                    200,
+                    {
+                        "labels": mirror.labels(),
+                        "reporters": mirror.reporters(),
+                    }
+                )
             elif urlsplit(self.path).path == "/activity":
                 self.send_activity()
             elif urlsplit(self.path).path == "/stats":

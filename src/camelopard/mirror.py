@@ -51,11 +51,12 @@ class IssueMirror:
         # Last time a pass found an issue that differs from its local copy (epoch seconds): the page reloads
         # its board when it is older.
         self.changed_at = None
-        # When each issue last changed in Jira (epoch milliseconds), and its labels: read from the files at
+        # When each issue last changed in Jira (epoch milliseconds), its labels and reporter: read from the files at
         # the first question, then kept up to date by every write, so that the page's frequent polling and
         # its board refreshes read no file.
         self._updated = None
         self._labels = None
+        self._reporters = None
         # Start of the last pass (epoch seconds), and the issues of the sprints it covered: the ones the
         # full pass found, then those the incremental passes rewrote. An issue removed from the sprints
         # only leaves at the next full pass: its detail is then fetched as if it had never been checked.
@@ -180,6 +181,13 @@ class IssueMirror:
             self._load_index()
             return dict(self._labels)
 
+    def reporters(self):
+        """Reporter of every issue of the local copy, {key: {"login", "name"}} or None: the filters offer
+        it, and Jira's board answer lacks it."""
+        with self._updated_lock:
+            self._load_index()
+            return dict(self._reporters)
+
     def _updated_since(self, since_ms):
         with self._updated_lock:
             self._load_index()
@@ -187,7 +195,7 @@ class IssueMirror:
 
     def _load_index(self):
         if self._updated is None:
-            self._updated, self._labels = {}, {}
+            self._updated, self._labels, self._reporters = {}, {}, {}
             for path in self._issues.glob("*.json"):
                 entry = self.read(path.stem)
                 if entry:
@@ -199,6 +207,12 @@ class IssueMirror:
         if at is not None:
             self._updated[issue["key"]] = at
         self._labels[issue["key"]] = fields.get("labels") or []
+        reporter = fields.get("reporter")
+        self._reporters[issue["key"]] = reporter and {
+            "login": reporter.get("name"),
+            "name": reporter.get("displayName"),
+            "avatar": (reporter.get("avatarUrls") or {}).get("48x48"),
+        }
 
     def _search_changed(self, jql):
         stale = [

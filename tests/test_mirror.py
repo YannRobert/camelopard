@@ -218,6 +218,22 @@ class IncrementalPassTest(unittest.TestCase):
         )
         self.assertEqual(restarted.labels()["ABC-1"], ["front"])
 
+    def test_reporters_of_the_local_copy(self):
+        self.assertEqual(self.mirror.reporters(), {"ABC-1": None, "ABC-2": None})
+        self.jira.issues[0] = {
+            "key": "ABC-1",
+            "fields": {
+                "reporter": {
+                    "name": "ada",
+                    "displayName": "Ada Lovelace",
+                    "avatarUrls": {"48x48": "https://jira/ada.png"},
+                },
+                "updated": "2026-01-02T11:00:00.000+0100",
+            },
+        }
+        self.mirror.sync_board()
+        self.assertEqual(self.mirror.reporters()["ABC-1"], {"login": "ada", "name": "Ada Lovelace", "avatar": "https://jira/ada.png"})
+
     def test_recently_updated_read_from_the_files_after_a_restart(self):
         ten = 1_767_344_400_000
         restarted = IssueMirror(

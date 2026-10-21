@@ -514,6 +514,7 @@ class HandlerTest(unittest.TestCase):
         status, body = self.call("GET", "/labels")
         self.assertEqual(status, 200)
         self.assertIn("ABC-1", json.loads(body)["labels"])
+        self.assertIn("ABC-1", json.loads(body)["reporters"])
         self.assertEqual(self.upstream.requests, [])
 
     def test_stats_summary_without_the_breakdown(self):
