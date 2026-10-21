@@ -3,6 +3,8 @@
 [![CI](https://github.com/YannRobert/camelopard/actions/workflows/ci.yml/badge.svg)](https://github.com/YannRobert/camelopard/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+Created and maintained by [Yann Robert](https://github.com/YannRobert) · Website: <https://yannrobert.github.io/camelopard/>
+
 **A blazing-fast alternative to the Jira web UI for your sprint board.** It shows the board of a
 Jira Server / Data Center sprint — columns, issues, epics, and a detail panel with description, comments
 and history — and every click answers instantly.
@@ -362,6 +364,6 @@ python3 -m unittest
 
 ## License
 
-[MIT](LICENSE).
+Copyright © 2026 Yann Robert. Released under the [MIT License](LICENSE).
 
 Camelopard is not affiliated with or endorsed by Atlassian. Jira is a registered trademark of Atlassian.
