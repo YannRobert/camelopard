@@ -5,10 +5,7 @@
 
 Created and maintained by [Yann Robert](https://github.com/YannRobert) · Website: <https://yannrobert.github.io/camelopard/>
 
-<a href="https://yannrobert.github.io/camelopard/"><picture>
-  <source srcset="https://yannrobert.github.io/camelopard/board-light.png" media="(prefers-color-scheme: light)">
-  <img src="https://yannrobert.github.io/camelopard/board-dark.png" width="1440" alt="Camelopard showing a sprint board: To Do, In Progress and Code Review columns with issue cards, quick filters and the sprint's remaining days.">
-</picture></a>
+[![Camelopard showing a sprint board: To Do, In Progress and Code Review columns with issue cards, quick filters and the sprint's remaining days.](https://yannrobert.github.io/camelopard/board-light.png)](https://yannrobert.github.io/camelopard/)
 
 *A sprint board in Camelopard, on the demo dataset: [take the tour](https://yannrobert.github.io/camelopard/tour.html),
 or [try it](#trying-it-without-jira) without a Jira.*
