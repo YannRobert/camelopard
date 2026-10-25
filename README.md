@@ -5,6 +5,14 @@
 
 Created and maintained by [Yann Robert](https://github.com/YannRobert) · Website: <https://yannrobert.github.io/camelopard/>
 
+<a href="https://yannrobert.github.io/camelopard/"><picture>
+  <source srcset="https://yannrobert.github.io/camelopard/board-light.png" media="(prefers-color-scheme: light)">
+  <img src="https://yannrobert.github.io/camelopard/board-dark.png" width="1440" alt="Camelopard showing a sprint board: To Do, In Progress and Code Review columns with issue cards, quick filters and the sprint's remaining days.">
+</picture></a>
+
+*A sprint board in Camelopard, on the demo dataset: [take the tour](https://yannrobert.github.io/camelopard/tour.html),
+or [try it](#trying-it-without-jira) without a Jira.*
+
 **A blazing-fast alternative to the Jira web UI for your sprint board.** It shows the board of a
 Jira Server / Data Center sprint — columns, issues, epics, and a detail panel with description, comments
 and history — and every click answers instantly.
