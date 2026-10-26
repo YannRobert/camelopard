@@ -204,6 +204,23 @@ class BoardTest(unittest.TestCase):
         expect(self.page.locator("#sprint-name")).to_have_text(name)
         expect(self.cards()).to_have_count(len(planned))
 
+    def test_a_sprint_started_since_the_settings_were_read_loads(self):
+        # Settings saved while the active sprint was still planned, and no copy of its board: what a tab
+        # left open holds once the next sprint has started.
+        self.page.evaluate(
+            """sprint => {
+              const key = Object.keys(localStorage).find(k => /^sprint-board\\.\\d+$/.test(k));
+              const saved = JSON.parse(localStorage.getItem(key));
+              saved.meta.planned.push({ id: sprint, name: "Started since", planned: true });
+              saved.boards = {};
+              localStorage.setItem(key, JSON.stringify(saved));
+            }""",
+            dataset.SPRINT_ID
+        )
+        self.page.reload()
+        self.page.locator("#board .card[data-key]").first.wait_for()
+        expect(self.page.locator("#remaining")).not_to_contain_text("Planned")
+
     def test_people_menu_adds_who_the_board_has_no_filter_on(self):
         self.page.locator("#people-filter").click()
         newcomer = self.page.locator("#people-menu li.apart")

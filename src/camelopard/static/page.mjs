@@ -326,8 +326,10 @@ async function ensureMeta() {
   };
 }
 
-// A sprint started since the settings were read is active: the active board has it, then.
-const plannedSprint = id => !state.boards[state.defaultSprint]?.sprints.some(s => s.id === id)
+// A sprint started since the settings were read is active: the active board has it, then. The default
+// sprint is active by definition, even before its board is loaded: taken for planned, its board would be
+// loaded from the active board, that is itself, endlessly.
+const plannedSprint = id => id !== state.defaultSprint && !state.boards[state.defaultSprint]?.sprints.some(s => s.id === id)
   ? state.meta?.planned?.find(s => s.id === id)
   : undefined;
 
@@ -627,6 +629,9 @@ async function doRefresh() {
     state.boards[sprintId] = board;
     // A new sprint has started: switch to it, unless the URL explicitly asks for another one.
     const latest = latestSprint(board.sprints);
+    // Settings read before a planned sprint started still list it as planned: it is active now.
+    const started = new Set(board.sprints.map(s => s.id));
+    if (state.meta.planned.some(s => started.has(s.id))) state.meta.planned = state.meta.planned.filter(s => !started.has(s.id));
     const activeIds = new Set([...board.sprints, ...state.meta.planned ?? []].map(s => s.id));
     for (const id of Object.keys(state.boards)) if (!activeIds.has(Number(id))) delete state.boards[id];
     const followDefault = !state.sprintId || state.sprintId === state.defaultSprint;
