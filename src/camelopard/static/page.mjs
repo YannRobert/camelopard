@@ -12,6 +12,7 @@ import {
   escapeHtml,
   formatSize,
   issueKeyOf,
+  lastFieldChange,
   latestSprint,
   matchesCriteria,
   normalize,
@@ -2883,7 +2884,7 @@ function renderDetail(
   const epic = issue && board.epics[issue.epicId];
   const points = f ? custom(f, "storyPoints") : issue?.points;
   const facts = [
-    ["Status", status ? `<span class="status-pill ${escapeHtml(status.category ?? "")}">${escapeHtml(status.name)}</span>` : ""],
+    ["Status", status ? `<span class="status-pill ${escapeHtml(status.category ?? "")}">${escapeHtml(status.name)}</span>${changedBy(data, "status")}` : ""],
     ["Resolution", f?.resolution ? escapeHtml(f.resolution.name) + (f.resolutiondate ? ` <span class="muted">on ${formatDate(f.resolutiondate)}</span>` : "") : null],
     ["Type", f ? `${icon({ url: f.issuetype.iconUrl, name: f.issuetype.name })}${escapeHtml(f.issuetype.name)}` : issue ? `${icon(board.types[issue.typeId])}${escapeHtml(board.types[issue.typeId]?.name)}` : ""],
     ["Priority", f?.priority ? `${icon({ url: f.priority.iconUrl, name: f.priority.name })}${escapeHtml(f.priority.name)}` : issue ? `${icon(board.priorities[issue.priorityId])}${escapeHtml(board.priorities[issue.priorityId]?.name)}` : ""],
@@ -2893,7 +2894,7 @@ function renderDetail(
     ["Assignee", assigneeHtml(
       key,
       f ? f.assignee : issue && { name: issue.assignee, displayName: issue.assigneeName, avatarUrls: { "48x48": issue.avatar } }
-    )],
+    ) + changedBy(data, "assignee")],
     ["Developer", custom(f, "developer") ? person(custom(f, "developer")) : null],
     ["Tester", custom(f, "tester") ? person(custom(f, "tester")) : null],
     ["Reporter", f ? person(f.reporter) : null],
@@ -4151,6 +4152,23 @@ function flashInfo(message) {
 }
 
 // ---------- Assignee ----------
+
+// Who last set a field and how long ago, or that it is as created, in a quiet aside: it answers "who put it
+// there?" without the history, and must not draw the eye away from the value itself.
+function changedBy(
+  data,
+  field
+) {
+  const change = lastFieldChange(
+    data?.changelog?.histories ?? [],
+    field
+  );
+  // Never changed: the value dates from the creation, whose date the panel already shows below. Without a
+  // name, since the reporter Jira keeps can differ from whoever created the issue.
+  if (!change) return data?.fields?.[field] ? ` <span class="changed-by">since creation</span>` : "";
+  return ` <span class="changed-by" data-at="${change.at}" title="${escapeHtml(formatDate(new Date(change.at).toISOString()))}">` +
+    `${escapeHtml(change.author?.displayName ?? "Someone")}, ${escapeHtml(compactDuration(Date.now() - change.at))} ago</span>`;
+}
 
 function assigneeHtml(
   key,

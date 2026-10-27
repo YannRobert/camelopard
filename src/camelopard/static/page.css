@@ -734,6 +734,8 @@ aside .facts .assign.pending { opacity: 0.6; cursor: progress; }
 .status-pill.new { background: var(--status-new); color: var(--status-new-fg); }
 .status-pill.indeterminate { background: var(--status-progress); color: var(--status-progress-fg); }
 .status-pill.done { background: var(--status-done); color: var(--status-done-fg); }
+/* Who last set the status or the assignee: an aside, quieter than the value it follows. */
+.changed-by { margin-left: 0.4rem; color: var(--faint); font-size: 0.8rem; font-weight: 400; white-space: nowrap; }
 /* Confirmation of a move through several statuses: sized in rem so that it follows the page zoom, and
    never wider nor taller than the window. */
 .move-dialog {

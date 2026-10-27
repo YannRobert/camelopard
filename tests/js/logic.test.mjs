@@ -14,6 +14,7 @@ import {
   escapeHtml,
   formatSize,
   issueKeyOf,
+  lastFieldChange,
   latestSprint,
   matchesCriteria,
   normalize,
@@ -289,6 +290,28 @@ describe("pairLines", () => {
       "x\nOne new thing\n\nAnother new thing\nAnd more"
     ));
     assert.ok(rows.some(row => row.same && row.same.text === ""));
+  });
+});
+
+describe("lastFieldChange", () => {
+  const change = (created, field, name) => ({ created, author: { displayName: name }, items: [{ field }] });
+
+  it("finds the latest change of the field, whoever made later changes to other fields", () => {
+    const found = lastFieldChange(
+      [
+        change("2026-10-01T09:00:00.000+0200", "status", "Ann"),
+        change("2026-10-02T09:00:00.000+0200", "status", "Bob"),
+        change("2026-10-03T09:00:00.000+0200", "assignee", "Cid"),
+      ],
+      "status"
+    );
+    assert.equal(found.author.displayName, "Bob");
+    assert.equal(found.at, Date.parse("2026-10-02T09:00:00.000+0200"));
+  });
+
+  it("is null when the field never changed", () => {
+    assert.equal(lastFieldChange([change("2026-10-01T09:00:00.000+0200", "labels", "Ann")], "status"), null);
+    assert.equal(lastFieldChange([], "status"), null);
   });
 });
 

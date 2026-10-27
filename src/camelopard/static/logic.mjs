@@ -387,6 +387,21 @@ export function timeline(
     || (a.kind === b.kind ? b.index - a.index : a.kind === "history" ? -1 : 1));
 }
 
+// The latest change of a field in an issue's history, by whom and when: who moved the issue to its status or
+// assigned it is what one scrolls the history for. Jira lists the history oldest first; null when the field
+// never changed (still as created).
+export function lastFieldChange(
+  histories,
+  field
+) {
+  for (let i = histories.length - 1; i >= 0; i--) {
+    if (histories[i].items?.some(item => item.field === field)) {
+      return { author: histories[i].author ?? null, at: Date.parse(histories[i].created) };
+    }
+  }
+  return null;
+}
+
 // The changes the activity list shows, by whom: someone else's ("others"), the user's own ("mine") or
 // everyone's ("all"). An issue with none left is left out.
 export const ACTIVITY_SCOPES = ["others", "mine", "all"];

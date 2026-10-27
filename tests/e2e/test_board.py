@@ -418,6 +418,16 @@ class BoardTest(unittest.TestCase):
             "bruno"
         )
 
+    def test_the_detail_says_who_last_set_the_status_and_the_assignee(self):
+        card = self.page.locator("#board .card[data-key]:has(.avatar.none)").first
+        card.click()
+        # A status always has its aside: who set it, or that it is the one the issue was created with.
+        expect(self.page.locator("#panel .status-pill + .changed-by")).to_have_count(1)
+        self.page.keyboard.press("Shift+A")
+        self.page.keyboard.type("bruno")
+        self.page.keyboard.press("Enter")
+        expect(self.page.locator("#panel .assign + .changed-by")).to_contain_text(" ago")
+
     def test_shift_s_starts_the_stand_up_and_escape_ends_it(self):
         self.page.keyboard.press("Shift+S")
         expect(self.page.locator("#standup-query")).to_be_focused()

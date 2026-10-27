@@ -24,6 +24,10 @@ already move issues by dragging a card by one of its grips (⠿, top left and bo
 column to change its status. It can also change an issue's assignee from the detail panel (click the
 assignee, or press `Shift+A`).
 
+**Who put it there.** Next to the status and the assignee, the detail panel says in grey who last set them
+and how long ago, or "since creation" when they never changed: no scrolling through the history to find
+out who moved or assigned the issue.
+
 **Moving an issue where the workflow does not lead directly.** When the workflow only reaches a status
 through others (A → B → C → D, or from C back to B through D and A), dropping the card in the target
 column is enough: it finds the shortest path, asks for confirmation, and applies the transitions one
